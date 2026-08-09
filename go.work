@@ -1,5 +1,7 @@
 go 1.26
 
 use (
+	./libs/eventstore
+	./libs/eventstore-postgres
 	./libs/kernel
 )
