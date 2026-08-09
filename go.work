@@ -1,7 +1,10 @@
 go 1.26
 
 use (
+	./libs/broker
+	./libs/broker-kafka
 	./libs/eventstore
 	./libs/eventstore-postgres
 	./libs/kernel
+	./libs/relay
 )

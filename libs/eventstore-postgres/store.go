@@ -29,6 +29,12 @@ CREATE TABLE IF NOT EXISTS events (
 	occurred_at    timestamptz NOT NULL DEFAULT now(),
 	UNIQUE (category, stream_id, version)
 );
+
+CREATE TABLE IF NOT EXISTS checkpoints (
+	name       text        PRIMARY KEY,
+	seq        bigint      NOT NULL,
+	updated_at timestamptz NOT NULL DEFAULT now()
+);
 `
 
 // Migrate applies [Schema]. Idempotent.

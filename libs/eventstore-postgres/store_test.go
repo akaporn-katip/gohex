@@ -40,4 +40,13 @@ func TestPostgresStoreContract(t *testing.T) {
 		}
 		return espostgres.New(pool)
 	})
+
+	t.Run("checkpoints", func(t *testing.T) {
+		storetest.RunCheckpoints(t, func(t *testing.T) eventstore.CheckpointStore {
+			if _, err := pool.Exec(ctx, `TRUNCATE checkpoints`); err != nil {
+				t.Fatalf("truncate: %v", err)
+			}
+			return espostgres.NewCheckpoints(pool)
+		})
+	})
 }
