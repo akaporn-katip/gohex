@@ -1,0 +1,31 @@
+version: "3"
+
+tasks:
+  up:
+    desc: Build and start the whole example system
+    cmd: docker compose up --build -d
+
+  down:
+    desc: Stop the example system and drop its data
+    cmd: docker compose down -v
+
+  logs:
+    desc: Follow all service logs
+    cmd: docker compose logs -f ordering billing inventory shipping
+
+  test:
+    desc: Run every module's tests
+    cmd: |
+      for m in libs/* services/*; do
+        (cd $m && go test ./...) || exit 1
+      done
+
+  demo:
+    desc: Place an order and poll its status
+    cmd: |
+      order=$(curl -s -X POST localhost:8080/orders -d '{"cents": 4999, "currency": "USD", "qty": 2}' | sed -E 's/.*"order_id":"([^"]+)".*/\1/')
+      echo "order: $order"
+      for i in $(seq 1 15); do
+        curl -s localhost:8080/orders/$order; echo
+        sleep 1
+      done

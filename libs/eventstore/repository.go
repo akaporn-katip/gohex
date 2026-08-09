@@ -7,6 +7,12 @@ import (
 	"github.com/akaporn-katip/gohex/libs/kernel"
 )
 
+// StringID adapts a plain string (e.g. a correlation ID from a command)
+// to the id parameter Load and Save accept.
+type StringID string
+
+func (s StringID) String() string { return string(s) }
+
 // Repository loads and saves event-sourced aggregates of type A (a
 // pointer type embedding kernel.Root). It owns the store/registry
 // plumbing so application code deals only in aggregates:

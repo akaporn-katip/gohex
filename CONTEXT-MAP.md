@@ -3,10 +3,10 @@
 ## Contexts
 
 - [gohex Framework](./CONTEXT.md) — the framework's own language: aggregates, events, relay, sagas, projections
-- Ordering (`services/ordering/CONTEXT.md`, when created) — receives and tracks customer orders
-- Billing (`services/billing/CONTEXT.md`, when created) — captures and refunds payments
-- Inventory (`services/inventory/CONTEXT.md`, when created) — tracks stock levels and reservations
-- Shipping (`services/shipping/CONTEXT.md`, when created) — creates and dispatches shipments
+- [Ordering](./services/ordering/CONTEXT.md) — receives and tracks customer orders
+- [Billing](./services/billing/CONTEXT.md) — captures and refunds payments
+- [Inventory](./services/inventory/CONTEXT.md) — tracks stock levels and reservations
+- [Shipping](./services/shipping/CONTEXT.md) — creates and dispatches shipments
 
 ## Relationships
 
