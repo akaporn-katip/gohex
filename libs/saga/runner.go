@@ -89,6 +89,14 @@ func (r *Runner[S]) process(ctx context.Context, id string, msg broker.Message) 
 	}
 	decisions := inst.lastDecisions
 
+	// Trace context for outgoing commands: prefer the ambient context
+	// (which includes the saga's own consumer span when o11y is wired),
+	// falling back to the triggering event's metadata.
+	cmdMetadata := eventstore.MetadataFromContext(ctx)
+	if cmdMetadata == nil {
+		cmdMetadata = msg.Metadata
+	}
+
 	for _, out := range decisions.Commands {
 		if out.Topic == "" {
 			return true, fmt.Errorf("saga %s/%s: command %s has no topic", r.def.name, id, out.Cmd.CommandName())
@@ -111,7 +119,7 @@ func (r *Runner[S]) process(ctx context.Context, id string, msg broker.Message) 
 			CommandName:     out.Cmd.CommandName(),
 			ContractVersion: version,
 			Payload:         payload,
-			Metadata:        msg.Metadata, // trace context flows event -> command
+			Metadata:        cmdMetadata,
 		}); err != nil {
 			return true, err
 		}

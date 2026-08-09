@@ -61,12 +61,14 @@ func (r *Repository[A]) Save(ctx context.Context, id interface{ String() string 
 	if len(pending) == 0 {
 		return nil
 	}
+	metadata := MetadataFromContext(ctx)
 	data := make([]EventData, len(pending))
 	for i, e := range pending {
 		var err error
 		if data[i], err = r.registry.Encode(e); err != nil {
 			return err
 		}
+		data[i].Metadata = metadata
 	}
 	stream := StreamID{Category: r.category, ID: id.String()}
 	if err := r.store.Append(ctx, stream, a.Version(), data); err != nil {
