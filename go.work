@@ -9,4 +9,5 @@ use (
 	./libs/kernel
 	./libs/projection
 	./libs/relay
+	./libs/saga
 )

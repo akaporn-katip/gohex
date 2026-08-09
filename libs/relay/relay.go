@@ -46,7 +46,12 @@ type Relay struct {
 	checkpoints eventstore.CheckpointStore
 	cfg         Config
 	translators map[string]func(kernel.DomainEvent) (broker.IntegrationEvent, bool)
+	routes      map[string]RouteFunc
 }
+
+// RouteFunc fully controls how one recorded event becomes a message:
+// destination topic and complete envelope. See [Relay.Route].
+type RouteFunc func(rec eventstore.RecordedEvent, e kernel.DomainEvent) (topic string, msg broker.Message, ok bool, err error)
 
 func New(store eventstore.Store, registry *eventstore.Registry, publisher broker.Publisher,
 	checkpoints eventstore.CheckpointStore, cfg Config) *Relay {
@@ -69,6 +74,7 @@ func New(store eventstore.Store, registry *eventstore.Registry, publisher broker
 		checkpoints: checkpoints,
 		cfg:         cfg,
 		translators: map[string]func(kernel.DomainEvent) (broker.IntegrationEvent, bool){},
+		routes:      map[string]RouteFunc{},
 	}
 }
 
@@ -81,10 +87,27 @@ func Translate[E kernel.DomainEvent](r *Relay, fn func(E) (broker.IntegrationEve
 	if _, dup := r.translators[name]; dup {
 		panic(fmt.Sprintf("relay: duplicate translator for %q", name))
 	}
+	if _, dup := r.routes[name]; dup {
+		panic(fmt.Sprintf("relay: %q already has a route", name))
+	}
 	r.translators[name] = func(e kernel.DomainEvent) (broker.IntegrationEvent, bool) {
 		// The registry guarantees the decoded type for this name.
 		return fn(e.(E))
 	}
+}
+
+// Route registers a low-level translator that controls the destination
+// topic and the complete message for eventName. This is the escape hatch
+// the saga module uses to route recorded commands to per-target command
+// topics; prefer [Translate] for ordinary integration events.
+func (r *Relay) Route(eventName string, fn RouteFunc) {
+	if _, dup := r.routes[eventName]; dup {
+		panic(fmt.Sprintf("relay: duplicate route for %q", eventName))
+	}
+	if _, dup := r.translators[eventName]; dup {
+		panic(fmt.Sprintf("relay: %q already has a translator", eventName))
+	}
+	r.routes[eventName] = fn
 }
 
 // Run tails the store until ctx is cancelled (returns nil) or an
@@ -114,18 +137,25 @@ func (r *Relay) Run(ctx context.Context) error {
 			continue
 		}
 
-		msgs := make([]broker.Message, 0, len(recs))
+		// Group messages by destination topic, preserving both the
+		// per-topic order and the first-encounter order of topics.
+		var topics []string
+		byTopic := map[string][]broker.Message{}
 		for _, rec := range recs {
-			msg, publish, err := r.translate(rec)
+			topic, msg, publish, err := r.translate(rec)
 			if err != nil {
 				return fmt.Errorf("relay %s: %w", r.cfg.Name, err)
 			}
-			if publish {
-				msgs = append(msgs, msg)
+			if !publish {
+				continue
 			}
+			if _, seen := byTopic[topic]; !seen {
+				topics = append(topics, topic)
+			}
+			byTopic[topic] = append(byTopic[topic], msg)
 		}
-		if len(msgs) > 0 {
-			if !r.publishWithRetry(ctx, msgs) {
+		for _, topic := range topics {
+			if !r.publishWithRetry(ctx, topic, byTopic[topic]) {
 				return nil // shut down mid-retry; checkpoint unchanged
 			}
 		}
@@ -136,31 +166,44 @@ func (r *Relay) Run(ctx context.Context) error {
 	}
 }
 
-func (r *Relay) translate(rec eventstore.RecordedEvent) (broker.Message, bool, error) {
+func (r *Relay) translate(rec eventstore.RecordedEvent) (string, broker.Message, bool, error) {
+	if route, ok := r.routes[rec.EventName]; ok {
+		event, err := r.registry.Decode(rec)
+		if err != nil {
+			return "", broker.Message{}, false, err
+		}
+		return route(rec, event)
+	}
 	translator, ok := r.translators[rec.EventName]
 	if !ok {
-		return broker.Message{}, false, nil // private by default (ADR-0004)
+		return "", broker.Message{}, false, nil // private by default (ADR-0004)
 	}
 	event, err := r.registry.Decode(rec)
 	if err != nil {
-		return broker.Message{}, false, err
+		return "", broker.Message{}, false, err
 	}
 	integration, ok := translator(event)
 	if !ok {
-		return broker.Message{}, false, nil
+		return "", broker.Message{}, false, nil
 	}
-	id := rec.Stream.Category + "/" + rec.Stream.ID + "#" + strconv.FormatInt(rec.Version, 10)
-	msg, err := broker.NewMessage(id, rec.Stream.ID, rec.OccurredAt, integration, rec.Metadata)
+	msg, err := broker.NewMessage(MessageID(rec), rec.Stream.ID, rec.OccurredAt, integration, rec.Metadata)
 	if err != nil {
-		return broker.Message{}, false, err
+		return "", broker.Message{}, false, err
 	}
-	return msg, true, nil
+	return r.cfg.Topic, msg, true, nil
+}
+
+// MessageID is the deterministic message ID for a recorded event:
+// "category/stream#version". Deterministic IDs let consumers deduplicate
+// the relay's at-least-once redeliveries; RouteFuncs should use it too.
+func MessageID(rec eventstore.RecordedEvent) string {
+	return rec.Stream.Category + "/" + rec.Stream.ID + "#" + strconv.FormatInt(rec.Version, 10)
 }
 
 // publishWithRetry retries until success; false means ctx ended first.
-func (r *Relay) publishWithRetry(ctx context.Context, msgs []broker.Message) bool {
+func (r *Relay) publishWithRetry(ctx context.Context, topic string, msgs []broker.Message) bool {
 	for {
-		if err := r.publisher.Publish(ctx, r.cfg.Topic, msgs...); err == nil {
+		if err := r.publisher.Publish(ctx, topic, msgs...); err == nil {
 			return true
 		}
 		if !sleepCtx(ctx, r.cfg.PublishBackoff) {
