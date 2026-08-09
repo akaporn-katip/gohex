@@ -1,0 +1,3 @@
+# Inter-service communication is async-only: command topics + events; no sync service-to-service calls
+
+Commands between services (including saga steps) are messages on point-to-point broker topics (e.g. billing.commands), consumed by the target's command bus with dedup-by-command-id; outcomes return as integration events. Facts a service needs from another context are replicated into local projections (ADR-0006), never fetched by sync gRPC/HTTP between services — the public API edge is the only synchronous surface. Rejected sync inter-service calls (availability coupling, double-fire on crash-retry, and they discard the atomic decide-and-send that event-sourced sagas get from the relay) and the "sync read-only queries as escape hatch" middle ground (replicate instead).

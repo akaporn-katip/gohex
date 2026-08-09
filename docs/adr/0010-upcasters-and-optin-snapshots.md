@@ -1,0 +1,3 @@
+# Schema evolution via upcasters on read; snapshots ship in v1, opt-in per aggregate
+
+Stored event payloads are immutable; shape changes register a chainable upcaster (v1→v2 pure function) run at deserialization, so aggregates and projections only ever see the latest shape — rejected tolerant-reader-only (additive-forever is unenforceable) and copy-transform stream rewrites (harder to build, mutates history). Snapshots ship in v1 as an opt-in Snapshotter port (Postgres impl included; aggregates implement Snapshot()/Restore()) — deferred snapshots would force a breaking change onto published aggregate APIs later, and always-on reflection snapshotting is fragile magic.

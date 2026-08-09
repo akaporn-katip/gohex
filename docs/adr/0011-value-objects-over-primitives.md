@@ -1,0 +1,3 @@
+# Aggregate state and events use value objects, not primitives; kernel ships the machinery, domains own the types
+
+Aggregates and domain events never hold raw strings/ints for domain concepts. The kernel provides the generic machinery: ID[T] typed identifiers (mixing up aggregate IDs is a compile error), the parse-don't-validate constructor convention (NewX returns (VO, error); zero value is invalid), and JSON marshaling hooks so value objects serialize cleanly into stored events. Business value objects (Money, SKU, Quantity, …) are defined in each service's domain package — rejected shipping a VO catalog in the kernel because types like Money encode domain opinions (currency, rounding) that would become frozen framework API.

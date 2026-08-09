@@ -1,0 +1,3 @@
+# Read models are hybrid projections: local catch-up for own events, broker subscription for foreign events
+
+A projection is a set of event handlers writing denormalized rows to plain Postgres tables in the service's own database. Handlers for the service's own domain events are fed by tailing its own event store (checkpoint + global sequence — full-history rebuilds, no broker dependency); handlers for other contexts' data are fed by their integration events from the broker, with consumed foreign events kept in a local inbox table so rebuilds work past broker retention. Rejected projecting everything via the broker (own read models would depend on broker uptime, see only public events, and rebuild only within topic retention).

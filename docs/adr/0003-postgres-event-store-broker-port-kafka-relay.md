@@ -1,0 +1,3 @@
+# Postgres event store; broker behind a port with Kafka reference adapter; framework-owned polling relay
+
+The event store is an append-only Postgres table with optimistic concurrency on (stream_id, version) — chosen over EventStoreDB/JetStream for adoption friction and an honest, non-leaky port. Messaging is defined as a publish/subscribe port in the framework; Kafka is the reference adapter (an in-process bus serves tests). Events travel from Postgres to the broker via a framework-owned polling relay that tails the global event sequence and checkpoints its position — at-least-once, ordered, broker-agnostic — rejected Debezium/CDC (extra infra, Kafka lock-in) and publish-after-commit (loses events on crash).
