@@ -7,5 +7,6 @@ use (
 	./libs/eventstore
 	./libs/eventstore-postgres
 	./libs/kernel
+	./libs/projection
 	./libs/relay
 )
