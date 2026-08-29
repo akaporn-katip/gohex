@@ -1,6 +1,6 @@
 # build-with-gohex changelog
 
-The copy in the gohex repo (`.claude/skills/build-with-gohex/`) is the source
+The copy in the gohex repo (`skills/build-with-gohex/`) is the source
 of truth; copies elsewhere (e.g. katipwork/skills) should match its `version`.
 
 Bump rules:
