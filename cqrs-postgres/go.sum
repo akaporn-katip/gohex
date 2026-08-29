@@ -1,3 +1,9 @@
+github.com/akaporn-katip/gohex/broker v0.1.0 h1:+Q9EznbS09VeqO87QOpk79kfa0yaaPQTJJwN/3VJxFQ=
+github.com/akaporn-katip/gohex/broker v0.1.0/go.mod h1:3x0RUTSiuv0Rvu6tWTDyHyZh+1oPj1D/WBGpgqlSLjo=
+github.com/akaporn-katip/gohex/cqrs v0.1.0 h1:dSjpXm6QCPK68Cxn104Qt1TwUBZ00EA+GCBfTAMs5is=
+github.com/akaporn-katip/gohex/cqrs v0.1.0/go.mod h1:2t+qjbbNbQQY6Z10B6stwljGHT8E/V1el+HHFD2wo0Q=
+github.com/akaporn-katip/gohex/kernel v0.1.0 h1:a+1Fl0lBphLXdSJ6uHTC8+668hJqnSvLVt4vV4Z5y50=
+github.com/akaporn-katip/gohex/kernel v0.1.0/go.mod h1:XrhNlorYqiV+WW0pZraeiDdshS2X5PwxRZv0zYZ9Yl4=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
