@@ -1,3 +1,5 @@
+github.com/akaporn-katip/gohex/broker v0.1.0 h1:+Q9EznbS09VeqO87QOpk79kfa0yaaPQTJJwN/3VJxFQ=
+github.com/akaporn-katip/gohex/broker v0.1.0/go.mod h1:3x0RUTSiuv0Rvu6tWTDyHyZh+1oPj1D/WBGpgqlSLjo=
 github.com/klauspost/compress v1.17.8 h1:YcnTYrq7MikUT7k0Yb5eceMmALQPYBW/Xltxn0NAMnU=
 github.com/klauspost/compress v1.17.8/go.mod h1:Di0epgTjJY877eYKx5yC51cX2A2Vl2ibi7bDH9ttBbw=
 github.com/pierrec/lz4/v4 v4.1.21 h1:yOVMLb6qSIDP67pl/5F7RepeKYu/VmTyEXvuMI5d9mQ=
