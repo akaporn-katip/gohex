@@ -3,10 +3,10 @@ module github.com/akaporn-katip/gohex/o11y
 go 1.26
 
 require (
-	github.com/akaporn-katip/gohex/broker v0.0.0
-	github.com/akaporn-katip/gohex/cqrs v0.0.0
-	github.com/akaporn-katip/gohex/eventstore v0.0.0
-	github.com/akaporn-katip/gohex/kernel v0.0.0
+	github.com/akaporn-katip/gohex/broker v0.1.0
+	github.com/akaporn-katip/gohex/cqrs v0.1.0
+	github.com/akaporn-katip/gohex/eventstore v0.1.0
+	github.com/akaporn-katip/gohex/kernel v0.1.0
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.35.0
 	go.opentelemetry.io/otel/sdk v1.35.0
@@ -30,13 +30,4 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/grpc v1.71.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
-)
-
-// Pre-release: modules are developed in the gohex workspace and not yet
-// tagged. Drop the replace directives at the first tagged release.
-replace (
-	github.com/akaporn-katip/gohex/broker => ../broker
-	github.com/akaporn-katip/gohex/cqrs => ../cqrs
-	github.com/akaporn-katip/gohex/eventstore => ../eventstore
-	github.com/akaporn-katip/gohex/kernel => ../kernel
 )
