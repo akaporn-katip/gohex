@@ -2,13 +2,13 @@
 
 Canonical examples in the gohex checkout — read them before and while writing:
 
-- `services/ordering/` — the full-featured service: HTTP edge, aggregate, saga,
+- `gohex-example/ordering/` — the full-featured service: HTTP edge, aggregate, saga,
   hybrid projection. Its `cmd/ordering/main.go` is **the** composition-root
   reference; the wiring order below comes from it.
-- `services/billing/` — the minimal service shape: wire-command consumer +
+- `gohex-example/billing/` — the minimal service shape: wire-command consumer +
   aggregate + relay, no HTTP, no projection. Start from this shape unless you
   need an edge or a read model.
-- ADR-0001 (library + example monorepo), ADR-0009 (module-per-capability,
+- ADR-0013 (framework and example split into two repos), ADR-0009 (module-per-capability,
   domain imports only the kernel).
 
 ## Layout
@@ -17,20 +17,20 @@ One binary per service; composition lives in `cmd/<name>/main.go` and nowhere
 else:
 
 ```
-services/<name>/
-  CONTEXT.md                    # the service's ubiquitous language (imitate services/ordering/CONTEXT.md)
+<name>/
+  CONTEXT.md                    # the service's ubiquitous language (imitate gohex-example/ordering/CONTEXT.md)
   cmd/<name>/main.go            # composition root
-  internal/domain/              # aggregates + value objects; imports ONLY libs/kernel
+  internal/domain/              # aggregates + value objects; imports ONLY the kernel module
   internal/app/                 # handlers, registrations, saga defs, projections
   internal/ports/               # interfaces the app needs (e.g. a read-model store)
   internal/adapters/            # postgres/http implementations of ports
-  go.mod                        # module github.com/<you>/<project>/services/<name>
+  go.mod                        # module github.com/<you>/<project>/<name>
 ```
 
-The domain package importing only `libs/kernel` is load-bearing (ADR-0009): if
+The domain package importing only `kernel` is load-bearing (ADR-0009): if
 `internal/domain` needs `eventstore` or `broker`, the design is wrong.
 
-## Wiring order (from `services/ordering/cmd/ordering/main.go`)
+## Wiring order (from `gohex-example/ordering/cmd/ordering/main.go`)
 
 Follow this order; each step's exact constructors are in the cited lib — read
 them, don't guess:
@@ -45,7 +45,7 @@ them, don't guess:
 4. **Event registry** — one registry; register every domain event the service
    stores (and saga stream events if it hosts a saga) in one `RegisterEvents`
    function in `internal/app`. Unregistered events fail loudly — that's a test
-   (`libs/eventstore/registry_test.go`).
+   (`eventstore/registry_test.go`).
 5. **Store, checkpoints, adapters** — the postgres event store, checkpoint
    store, and your read-model store.
 6. **Broker** — Kafka client, then wrap it with the o11y publisher/subscriber
@@ -66,20 +66,21 @@ them, don't guess:
 The `-postgres` libs own their schemas and expose idempotent `Migrate`
 functions — call them at startup, don't hand-write their DDL. Your own
 read-model tables get a `Migrate` in your postgres adapter package (imitate
-`services/ordering/internal/adapters/postgres/summary.go`).
+`gohex-example/ordering/internal/adapters/postgres/summary.go`).
 
 ## Dockerfile / compose
 
 The example uses one parameterized Dockerfile for all services (build arg
-`SERVICE`, workspace copied so `go.work` resolves local modules) — see the
-root `Dockerfile` and the per-service stanza in `docker-compose.yml` (env
+`SERVICE`, workspace copied so `go.work` resolves local modules) — see
+`gohex-example/Dockerfile` and the per-service stanza in
+`gohex-example/docker-compose.yml` (env
 `DATABASE_URL`, `KAFKA_BROKERS`, `PORT`; depends_on postgres + kafka healthy).
 Copy that stanza for a new service; each service gets its own database.
 
 ## Smoke test
 
-`task up` / `task demo` (see the root `Taskfile.yml`) or the curl flow in the
-README: place an order, poll status until it walks `placed → paid → reserved →
+`task up` / `task demo` (see `gohex-example/Taskfile.yml`) or the curl flow in
+the gohex-example README: place an order, poll status until it walks `placed → paid → reserved →
 shipped`. For a new service: verify its consumer acts on a command, its facts
 appear on its events topic, and its rows survive a restart without
 double-processing (at-least-once + dedup working).

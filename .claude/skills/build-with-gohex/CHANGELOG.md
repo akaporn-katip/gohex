@@ -10,6 +10,15 @@ Bump rules:
 - **major** — restructured workflow files, or guidance changed because a gohex
   guarantee or API contract changed.
 
+## 2.0.0 — 2026-08-30
+
+The framework and the example system split into two repos (ADR-0013): libs
+flattened to the gohex repo root (`github.com/akaporn-katip/gohex/<module>`,
+released as `<module>/v0.1.0`), the example moved to
+`github.com/akaporn-katip/gohex-example`. All `libs/*` and `services/*` path
+pointers rewritten; Rule 0 now clones both repos; `CONTEXT-MAP.md` lives in
+gohex-example.
+
 ## 1.0.0 — 2026-08-15
 
 Initial release: SKILL.md router (mental model, guarantees, live-lookup rule)

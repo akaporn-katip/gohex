@@ -1,41 +1,44 @@
 ---
 name: build-with-gohex
-description: Build event-driven Go microservices with the gohex framework libraries (github.com/akaporn-katip/gohex). Use when the user mentions gohex, or the project already imports github.com/akaporn-katip/gohex/libs/* — for scaffolding a new service, adding aggregates/events/commands, integrating services via contracts/sagas/projections, or wiring OpenTelemetry through the async flow. Do not use for generic event-sourcing or CQRS advice in projects that don't use gohex.
-version: 1.0.0
+description: Build event-driven Go microservices with the gohex framework libraries (github.com/akaporn-katip/gohex). Use when the user mentions gohex, or the project already imports github.com/akaporn-katip/gohex/* — for scaffolding a new service, adding aggregates/events/commands, integrating services via contracts/sagas/projections, or wiring OpenTelemetry through the async flow. Do not use for generic event-sourcing or CQRS advice in projects that don't use gohex.
+version: 2.0.0
 ---
 
 # Build with gohex
 
 gohex (`github.com/akaporn-katip/gohex`) is a set of importable Go framework
 libraries for event-driven microservices: hexagonal architecture, event-sourced
-aggregates, CQRS, hybrid read-model projections, and event-sourced sagas — plus
-a runnable four-service example system that is the canonical usage reference.
+aggregates, CQRS, hybrid read-model projections, and event-sourced sagas. A
+runnable four-service example system — the canonical usage reference — lives in
+its own repo, `github.com/akaporn-katip/gohex-example`. Modules are pulled per
+capability: `go get github.com/akaporn-katip/gohex/<module>@latest`.
 
 ## Rule 0 — read the source, never trust remembered signatures
 
 This skill deliberately contains **no API signatures**. gohex evolves; the
 source is the only truth. Before writing any code that calls a gohex lib:
 
-1. Locate a gohex checkout. This skill ships inside the gohex repo, so when
-   working in it (or a project that vendors/workspaces it), the checkout is
-   already at hand — every path cited in this skill is relative to that repo
-   root. When building a gohex-based service in an unrelated project, clone
-   one (reuse if it already exists):
+1. Locate checkouts of both repos. This skill ships inside the gohex repo, so
+   when working in it the framework checkout is at hand. Otherwise clone them
+   (reuse if they already exist):
 
    ```sh
    [ -d /tmp/gohex-src ] || git clone --depth 1 https://github.com/akaporn-katip/gohex /tmp/gohex-src
+   [ -d /tmp/gohex-example-src ] || git clone --depth 1 https://github.com/akaporn-katip/gohex-example /tmp/gohex-example-src
    ```
 
-2. Read the exact constructors/types you are about to use in `libs/<module>/`,
-   and imitate the canonical example in `services/` (pointers in the reference
-   files below).
+2. Read the exact constructors/types you are about to use in `<module>/` at
+   the gohex repo root, and imitate the canonical example services (pointers
+   in the reference files below). Paths cited as `gohex-example/...` are
+   relative to the gohex-example checkout; all other paths are relative to
+   the gohex repo root.
 
-The checkout also gives you `docs/adr/0001`–`0012` (every architectural
-decision, numbered; reference files cite them as ADR-NNNN), `CONTEXT.md` (the
-framework's ubiquitous language — use its terms verbatim: Aggregate, Value
-Object, Domain Event, Integration Event, Translator, Relay, Envelope, Upcaster,
-Checkpoint, Projection, Inbox, Saga, Compensation), and `CONTEXT-MAP.md` (how
-the example services relate).
+The gohex checkout also gives you `docs/adr/0001`–`0013` (every architectural
+decision, numbered; reference files cite them as ADR-NNNN) and `CONTEXT.md`
+(the framework's ubiquitous language — use its terms verbatim: Aggregate,
+Value Object, Domain Event, Integration Event, Translator, Relay, Envelope,
+Upcaster, Checkpoint, Projection, Inbox, Saga, Compensation); gohex-example
+carries `CONTEXT-MAP.md` (how the example services relate).
 
 ## The mental model
 
@@ -45,7 +48,7 @@ Between services: **only** the broker — commands in on `<service>.commands`
 topics, integration events out on `<service>.events` topics. Never a
 synchronous call, never another service's database (ADR-0008).
 
-The modules (each is its own Go module under `libs/`):
+The modules (each is its own Go module at the gohex repo root):
 
 | Module | Role |
 |---|---|
@@ -60,8 +63,8 @@ The modules (each is its own Go module under `libs/`):
 
 ## The guarantees you must not break
 
-Every design choice below is pinned by a test in `libs/` — the reference files
-cite them. When your code fights one of these, you are holding it wrong:
+Every design choice below is pinned by a test in the framework modules — the
+reference files cite them. When your code fights one of these, you are holding it wrong:
 
 - **Private by default.** Domain events never leave the service. Only an
   explicit Translator on the relay publishes a versioned Integration Event
@@ -86,8 +89,8 @@ cite them. When your code fights one of these, you are holding it wrong:
 Every aggregate, saga, and projection you build ships with tests in the gohex
 style, using the framework's in-memory implementations (memory event store,
 memory broker, memory inbox, memory deduplicator) — no mocks, no containers.
-Each reference file names the canonical `_test.go` files in `libs/` whose
-patterns to imitate and which guarantee they pin.
+Each reference file names the canonical `_test.go` files in the framework
+modules whose patterns to imitate and which guarantee they pin.
 
 ## Workflow guides
 

@@ -2,16 +2,16 @@
 
 Canonical examples in the gohex checkout:
 
-- `services/contracts/contracts.go` — the contract catalog: every integration
+- `gohex-example/contracts/contracts.go` — the contract catalog: every integration
   event, command, and topic name in one dependency-free module.
-- `services/ordering/internal/app/app.go` (`RegisterTranslators`) and
-  `services/billing/internal/app/app.go` — translators; billing also shows
+- `gohex-example/ordering/internal/app/app.go` (`RegisterTranslators`) and
+  `gohex-example/billing/internal/app/app.go` — translators; billing also shows
   wire-command registration and replay-safe handlers.
-- `services/ordering/internal/app/saga.go` — the fulfillment saga, including
+- `gohex-example/ordering/internal/app/saga.go` — the fulfillment saga, including
   compensation.
-- `services/ordering/internal/app/projection.go` — the hybrid `order_summary`
+- `gohex-example/ordering/internal/app/projection.go` — the hybrid `order_summary`
   projection.
-- `services/billing/cmd/billing/main.go` — wiring a wire-command consumer with
+- `gohex-example/billing/cmd/billing/main.go` — wiring a wire-command consumer with
   postgres dedup.
 - ADR-0004 (domain vs integration events), ADR-0005 (envelope wire format),
   ADR-0006 (hybrid projections), ADR-0007 (sagas), ADR-0008 (async-only).
@@ -34,12 +34,12 @@ Domain events are private. To publish a fact, register a translator on the
 relay (`relay.Translate`): a pure function from the domain event to the
 contract. Returning not-ok keeps that instance private. No translator = the
 event never leaves — the relay skips it but still advances its checkpoint
-(`libs/relay/relay_test.go`, `TestRelaySkipsPrivateEventsButAdvances`).
+(`relay/relay_test.go`, `TestRelaySkipsPrivateEventsButAdvances`).
 
 The relay gives you at-least-once, in-order publication with deterministic
 message IDs (`category/id#version` — `relay.MessageID`), resume-from-checkpoint
 without duplicates, and retry-without-advancing on publish failure — all
-pinned in `libs/relay/relay_test.go`. Never publish to the broker from a
+pinned in `relay/relay_test.go`. Never publish to the broker from a
 handler; append to the store and let the relay do it.
 
 ## Consuming commands off the wire
@@ -49,14 +49,14 @@ The receiving service (imitate billing):
 1. Register consumable commands in a `cqrs.Registry` (`RegisterCommands` in
    the app package).
 2. Wire `cqrs.NewConsumer` with the bus, registry, a **postgres**
-   deduplicator (`libs/cqrs-postgres`), and its config; run it on the
+   deduplicator (`cqrs-postgres`), and its config; run it on the
    service's `<service>.commands` topic.
 3. Handlers must be **replay-safe** even with dedup (a crash between execute
    and mark redelivers): billing's `CapturePayment` treats an already-decided
    payment as a no-op; `RefundPayment` treats already-refunded as success.
 
-Consumer semantics — pinned in `libs/cqrs/consumer_test.go` and
-`libs/cqrs-postgres/dedup_test.go`: duplicates by envelope ID are dropped;
+Consumer semantics — pinned in `cqrs/consumer_test.go` and
+`cqrs-postgres/dedup_test.go`: duplicates by envelope ID are dropped;
 domain errors are **acked** (definitive rejection — the answer is a rejection
 integration event, not a retry); transient errors are redelivered.
 
@@ -69,7 +69,7 @@ A read model is a disposable, query-shaped table fed from two sources:
 - **Foreign facts** via the durable inbox: one `projection.NewInboxWriter` per
   foreign topic persists envelopes; `projection.NewInboxReader` feeds them to
   `projection.OnIntegration` handlers. The inbox is what makes rebuilds
-  possible past broker retention (`libs/projection/projection_test.go`,
+  possible past broker retention (`projection/projection_test.go`,
   `TestRebuildReplaysInboxWithoutBroker`).
 
 Handlers must be **idempotent and commutative** — cross-source ordering is not
@@ -86,7 +86,7 @@ ID) and a **pure decision handler**: mutate state, return
 `saga.Send(commands…)` / `saga.End()` / both (compensation + end). No I/O in
 handlers.
 
-The machinery guarantees, pinned in `libs/saga/saga_test.go`:
+The machinery guarantees, pinned in `saga/saga_test.go`:
 
 - **Atomic decide-and-send** — the decision event and its outgoing commands
   are one append to the saga's stream; the relay routes the commands
@@ -102,10 +102,10 @@ command (refund after stock rejection) and end.
 
 ## Tests you must ship (non-negotiable)
 
-- **Saga**: imitate `libs/saga/saga_test.go` — for each step: given prior
+- **Saga**: imitate `saga/saga_test.go` — for each step: given prior
   decisions, when event, expect commands/end; plus a compensation path and a
   redelivery-dedup case. Memory store + memory broker.
-- **Projection**: imitate `libs/projection/projection_test.go` — own events
+- **Projection**: imitate `projection/projection_test.go` — own events
   project via catch-up and resume without reapplying; foreign facts flow
   through a `MemoryInbox`; out-of-order/duplicate delivery leaves the row
   correct (prove commutativity + idempotency).
