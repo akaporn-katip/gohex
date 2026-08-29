@@ -1,3 +1,5 @@
 # Go workspace monorepo; one module per library capability and per example service
 
 The repo is stitched by go.work: every framework library and every example service is its own Go module — chosen over a single framework module (and over core+adapters) accepting the tagging/compat ceremony in exchange for piecemeal adoption and maximum independence. Libraries are cut by capability with adapters separate: kernel (zero-dep domain building blocks), cqrs, eventstore (port) / eventstore-postgres, broker (port) / broker-kafka, saga, projection, o11y. Ports depend only on kernel; adapters carry the heavy dependencies — so dependency direction enforces the hexagon at the module level. Known cost: cross-module changes require ordered tagging, and consumer version-skew combinations are untested by default.
+
+*Amended by [ADR 0013](0013-split-framework-and-example-repos.md): the workspace remains, but library modules now sit at the repo root (`github.com/akaporn-katip/gohex/<name>`) and the example services live in their own repository with their own workspace.*

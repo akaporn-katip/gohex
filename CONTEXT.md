@@ -1,6 +1,6 @@
 # gohex Framework
 
-The ubiquitous language of the gohex framework itself — the concepts its libraries expose and its documentation teaches. The example system's business contexts have their own glossaries (see CONTEXT-MAP.md).
+The ubiquitous language of the gohex framework itself — the concepts its libraries expose and its documentation teaches. The example system's business contexts have their own glossaries (see [gohex-example](https://github.com/akaporn-katip/gohex-example)).
 
 ## Language
 
