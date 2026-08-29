@@ -1,15 +1,15 @@
 # gohex
 
-A reference codebase for event-driven microservices in Go: hexagonal
+A framework for event-driven microservices in Go: hexagonal
 architecture, domain-driven design, event sourcing, CQRS, and sagas —
-as **importable framework libraries** plus a **runnable example system**
-demonstrating them.
+as **importable framework libraries**. A runnable example system
+demonstrating them lives in
+[gohex-example](https://github.com/akaporn-katip/gohex-example).
 
 Every architectural decision is recorded in [`docs/adr/`](docs/adr/); the
-ubiquitous language lives in [`CONTEXT.md`](CONTEXT.md) and
-[`CONTEXT-MAP.md`](CONTEXT-MAP.md).
+ubiquitous language lives in [`CONTEXT.md`](CONTEXT.md).
 
-## The framework (`libs/`)
+## The modules
 
 | Module | What it is |
 |---|---|
@@ -21,6 +21,13 @@ ubiquitous language lives in [`CONTEXT.md`](CONTEXT.md) and
 | `projection` (+`-postgres`) | Hybrid read models: own events from the store, foreign facts via a durable inbox |
 | `saga` | Event-sourced orchestration: workflows that decide, send, and compensate — atomically |
 | `o11y` | OpenTelemetry woven through the async flow: one trace from HTTP edge to the last service |
+
+Each module is independently versioned and importable:
+
+```sh
+go get github.com/akaporn-katip/gohex/kernel@v0.1.0
+go get github.com/akaporn-katip/gohex/eventstore@v0.1.0
+```
 
 Key guarantees, all pinned by tests:
 
@@ -34,55 +41,14 @@ Key guarantees, all pinned by tests:
 - **One trace across the async hops** — trace context survives *through
   the event store* into the broker and on to other services.
 
-## The example (`services/`)
+## The example system
 
-E-commerce order fulfillment across four services — `ordering`,
+[gohex-example](https://github.com/akaporn-katip/gohex-example) is
+e-commerce order fulfillment across four services — `ordering`,
 `billing`, `inventory`, `shipping` — talking **only** through Kafka:
-commands in, facts out. The `ordering` service hosts the fulfillment
-saga and an `order_summary` read model fed by all four services' events.
-
-### Run it
-
-```sh
-docker compose up --build -d     # Postgres, Kafka, HyperDX (ClickStack), 4 services
-```
-
-Place an order and watch it flow:
-
-```sh
-curl -s -X POST localhost:8080/orders \
-  -d '{"cents": 4999, "currency": "USD", "qty": 2}' | tee /tmp/order.json
-
-ORDER=$(jq -r .order_id /tmp/order.json)
-curl -s localhost:8080/orders/$ORDER | jq .status
-# placed -> paid -> reserved -> shipped  (re-run to watch it advance)
-```
-
-Failure paths (the demo rules):
-
-```sh
-# payment declined: cents > 99999
-curl -s -X POST localhost:8080/orders -d '{"cents": 250000, "currency": "USD", "qty": 1}'
-# -> status: payment_failed
-
-# out of stock: qty > 10 — payment is captured, then REFUNDED (saga compensation)
-curl -s -X POST localhost:8080/orders -d '{"cents": 4999, "currency": "USD", "qty": 50}'
-# -> status: rejected, then refunded
-```
-
-Then open **http://localhost:8090** (HyperDX — the ClickHouse-backed
-ClickStack, OTLP built in) and find the trace: one timeline from
-`POST /orders` through the saga, billing, inventory, and shipping —
-across every Kafka hop.
-
-## Repository layout
-
-```
-libs/        framework modules (one Go module each; ports and adapters split)
-services/    the example system (one Go module per service + shared contracts)
-  ordering/  internal/{domain,app,ports,adapters} + cmd — the full hexagon
-docs/adr/    why everything is the way it is
-```
+commands in, facts out. Clone it and `docker compose up --build -d` to
+see the whole flow, including one OpenTelemetry trace across every
+Kafka hop.
 
 ## License
 

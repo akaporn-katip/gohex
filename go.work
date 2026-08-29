@@ -1,21 +1,16 @@
 go 1.26
 
 use (
-	./libs/broker
-	./libs/broker-kafka
-	./libs/cqrs
-	./libs/cqrs-postgres
-	./libs/eventstore
-	./libs/eventstore-postgres
-	./libs/kernel
-	./libs/o11y
-	./libs/projection
-	./libs/projection-postgres
-	./libs/relay
-	./libs/saga
-	./services/billing
-	./services/contracts
-	./services/inventory
-	./services/ordering
-	./services/shipping
+	./broker
+	./broker-kafka
+	./cqrs
+	./cqrs-postgres
+	./eventstore
+	./eventstore-postgres
+	./kernel
+	./o11y
+	./projection
+	./projection-postgres
+	./relay
+	./saga
 )
