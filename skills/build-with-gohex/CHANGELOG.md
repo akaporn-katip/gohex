@@ -10,6 +10,12 @@ Bump rules:
 - **major** — restructured workflow files, or guidance changed because a gohex
   guarantee or API contract changed.
 
+## 2.0.1 — 2026-08-30
+
+Reference-file headers said "in the gohex checkout" while citing mostly
+`gohex-example/...` paths; now "in the checkouts", matching Rule 0's
+two-checkout setup.
+
 ## 2.0.0 — 2026-08-30
 
 The framework and the example system split into two repos (ADR-0013): libs

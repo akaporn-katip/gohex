@@ -1,6 +1,6 @@
 # Cross-service integration: contracts, translators, wire commands, projections, sagas
 
-Canonical examples in the gohex checkout:
+Canonical examples in the checkouts:
 
 - `gohex-example/contracts/contracts.go` — the contract catalog: every integration
   event, command, and topic name in one dependency-free module.

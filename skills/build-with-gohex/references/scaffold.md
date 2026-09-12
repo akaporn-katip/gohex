@@ -1,6 +1,6 @@
 # Scaffold a new gohex service
 
-Canonical examples in the gohex checkout — read them before and while writing:
+Canonical examples in the checkouts — read them before and while writing:
 
 - `gohex-example/ordering/` — the full-featured service: HTTP edge, aggregate, saga,
   hybrid projection. Its `cmd/ordering/main.go` is **the** composition-root

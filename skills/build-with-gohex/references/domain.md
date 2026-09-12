@@ -1,6 +1,6 @@
 # Domain building blocks: aggregates, value objects, events, handlers
 
-Canonical examples in the gohex checkout:
+Canonical examples in the checkouts:
 
 - `gohex-example/ordering/internal/domain/order.go` — the model file: value objects
   with parsing constructors and stable JSON shapes, domain events, the
