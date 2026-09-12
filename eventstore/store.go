@@ -67,7 +67,12 @@ type Store interface {
 	// new stream); on mismatch Append fails with ErrVersionConflict and
 	// stores nothing. Events must become visible to ReadAll in commit
 	// order, so tailing by GlobalSeq never skips events.
-	Append(ctx context.Context, stream StreamID, expectedVersion int64, events []EventData) error
+	//
+	// On success Append returns the GlobalSeq of the last event it
+	// stored — the write position a caller can wait on (read-your-writes,
+	// see WaitForCheckpoint in the projection package). An empty append
+	// returns 0.
+	Append(ctx context.Context, stream StreamID, expectedVersion int64, events []EventData) (lastSeq int64, err error)
 
 	// Load returns the stream's events with Version > afterVersion, in
 	// version order. A missing stream yields an empty slice, not an

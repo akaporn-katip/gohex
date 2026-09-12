@@ -62,6 +62,10 @@ func (r *Repository[A]) Load(ctx context.Context, id interface{ String() string 
 // and, only on success, marks them committed. ErrVersionConflict means a
 // concurrent writer won; reload and retry the command. Saving an
 // aggregate with no uncommitted events is a no-op.
+//
+// On success Save reports the append's GlobalSeq to the [Position]
+// captured on ctx, if any (see [CapturePosition]) — handlers stay
+// untouched; the edge that wants read-your-writes opts in.
 func (r *Repository[A]) Save(ctx context.Context, id interface{ String() string }, a A) error {
 	pending := a.UncommittedEvents()
 	if len(pending) == 0 {
@@ -77,9 +81,11 @@ func (r *Repository[A]) Save(ctx context.Context, id interface{ String() string 
 		data[i].Metadata = metadata
 	}
 	stream := StreamID{Category: r.category, ID: id.String()}
-	if err := r.store.Append(ctx, stream, a.Version(), data); err != nil {
+	seq, err := r.store.Append(ctx, stream, a.Version(), data)
+	if err != nil {
 		return err
 	}
+	recordPosition(ctx, seq)
 	kernel.TakeUncommitted(a)
 	return nil
 }

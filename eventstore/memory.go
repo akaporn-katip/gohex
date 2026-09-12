@@ -24,16 +24,16 @@ func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{streams: map[StreamID][]int{}}
 }
 
-func (s *MemoryStore) Append(_ context.Context, stream StreamID, expectedVersion int64, events []EventData) error {
+func (s *MemoryStore) Append(_ context.Context, stream StreamID, expectedVersion int64, events []EventData) (int64, error) {
 	if len(events) == 0 {
-		return nil
+		return 0, nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	current := int64(len(s.streams[stream]))
 	if current != expectedVersion {
-		return fmt.Errorf("%w: stream %s/%s at version %d, expected %d",
+		return 0, fmt.Errorf("%w: stream %s/%s at version %d, expected %d",
 			ErrVersionConflict, stream.Category, stream.ID, current, expectedVersion)
 	}
 	now := time.Now().UTC()
@@ -51,7 +51,7 @@ func (s *MemoryStore) Append(_ context.Context, stream StreamID, expectedVersion
 		s.streams[stream] = append(s.streams[stream], len(s.all))
 		s.all = append(s.all, rec)
 	}
-	return nil
+	return s.all[len(s.all)-1].GlobalSeq, nil
 }
 
 func (s *MemoryStore) Load(_ context.Context, stream StreamID, afterVersion int64) ([]RecordedEvent, error) {

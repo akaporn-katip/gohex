@@ -33,7 +33,7 @@ func Run(t *testing.T, newStore func(t *testing.T) eventstore.Store) {
 
 	t.Run("append then load", func(t *testing.T) {
 		s := newStore(t)
-		if err := s.Append(ctx, stream, 0, []eventstore.EventData{ev("a"), ev("b")}); err != nil {
+		if _, err := s.Append(ctx, stream, 0, []eventstore.EventData{ev("a"), ev("b")}); err != nil {
 			t.Fatalf("Append: %v", err)
 		}
 		recs, err := s.Load(ctx, stream, 0)
@@ -78,7 +78,7 @@ func Run(t *testing.T, newStore func(t *testing.T) eventstore.Store) {
 	t.Run("stale append conflicts", func(t *testing.T) {
 		s := newStore(t)
 		mustAppend(t, s, stream, 0, ev("a"))
-		err := s.Append(ctx, stream, 0, []eventstore.EventData{ev("b")})
+		_, err := s.Append(ctx, stream, 0, []eventstore.EventData{ev("b")})
 		if !errors.Is(err, eventstore.ErrVersionConflict) {
 			t.Fatalf("stale append = %v, want ErrVersionConflict", err)
 		}
@@ -91,14 +91,14 @@ func Run(t *testing.T, newStore func(t *testing.T) eventstore.Store) {
 	t.Run("concurrent create conflicts", func(t *testing.T) {
 		s := newStore(t)
 		mustAppend(t, s, stream, 0, ev("a"))
-		if err := s.Append(ctx, stream, 0, []eventstore.EventData{ev("a")}); !errors.Is(err, eventstore.ErrVersionConflict) {
+		if _, err := s.Append(ctx, stream, 0, []eventstore.EventData{ev("a")}); !errors.Is(err, eventstore.ErrVersionConflict) {
 			t.Fatalf("second create = %v, want ErrVersionConflict", err)
 		}
 	})
 
 	t.Run("future expected version conflicts", func(t *testing.T) {
 		s := newStore(t)
-		if err := s.Append(ctx, stream, 5, []eventstore.EventData{ev("a")}); !errors.Is(err, eventstore.ErrVersionConflict) {
+		if _, err := s.Append(ctx, stream, 5, []eventstore.EventData{ev("a")}); !errors.Is(err, eventstore.ErrVersionConflict) {
 			t.Fatalf("future version append = %v, want ErrVersionConflict", err)
 		}
 	})
@@ -195,19 +195,48 @@ func Run(t *testing.T, newStore func(t *testing.T) eventstore.Store) {
 
 	t.Run("empty append is a no-op", func(t *testing.T) {
 		s := newStore(t)
-		if err := s.Append(ctx, stream, 0, nil); err != nil {
+		seq, err := s.Append(ctx, stream, 0, nil)
+		if err != nil {
 			t.Fatalf("empty Append: %v", err)
+		}
+		if seq != 0 {
+			t.Errorf("empty Append seq = %d, want 0", seq)
 		}
 		recs, _ := s.ReadAll(ctx, 0, 0)
 		if len(recs) != 0 {
 			t.Errorf("empty append stored %d events", len(recs))
 		}
 	})
+
+	t.Run("append returns the last global seq", func(t *testing.T) {
+		s := newStore(t)
+		seq1, err := s.Append(ctx, stream, 0, []eventstore.EventData{ev("a"), ev("b")})
+		if err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+		seq2, err := s.Append(ctx, other, 0, []eventstore.EventData{ev("c")})
+		if err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+		if seq2 <= seq1 {
+			t.Errorf("seqs not increasing across appends: %d then %d", seq1, seq2)
+		}
+		recs, err := s.ReadAll(ctx, 0, 0)
+		if err != nil {
+			t.Fatalf("ReadAll: %v", err)
+		}
+		if got := recs[1].GlobalSeq; got != seq1 {
+			t.Errorf("first append reported seq %d, ReadAll says %d", seq1, got)
+		}
+		if got := recs[2].GlobalSeq; got != seq2 {
+			t.Errorf("second append reported seq %d, ReadAll says %d", seq2, got)
+		}
+	})
 }
 
 func mustAppend(t *testing.T, s eventstore.Store, stream eventstore.StreamID, expected int64, events ...eventstore.EventData) {
 	t.Helper()
-	if err := s.Append(context.Background(), stream, expected, events); err != nil {
+	if _, err := s.Append(context.Background(), stream, expected, events); err != nil {
 		t.Fatalf("Append(%s/%s @%d): %v", stream.Category, stream.ID, expected, err)
 	}
 }

@@ -33,7 +33,7 @@ func NewCatchUp(p *Projection, store eventstore.Store, registry *eventstore.Regi
 // occurs (returns it; the supervisor restarts from the checkpoint, so
 // the in-flight batch is re-applied — handlers must be idempotent).
 func (c *CatchUp) Run(ctx context.Context) error {
-	name := c.projection.storeCheckpoint()
+	name := c.projection.StoreCheckpoint()
 	seq, err := c.checkpoints.Get(ctx, name)
 	if err != nil {
 		return fmt.Errorf("%s: %w", name, err)

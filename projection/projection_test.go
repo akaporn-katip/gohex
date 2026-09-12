@@ -141,7 +141,7 @@ func appendEvents(t *testing.T, store eventstore.Store, id string, expected int6
 		}
 	}
 	stream := eventstore.StreamID{Category: "order", ID: id}
-	if err := store.Append(context.Background(), stream, expected, data); err != nil {
+	if _, err := store.Append(context.Background(), stream, expected, data); err != nil {
 		t.Fatal(err)
 	}
 }

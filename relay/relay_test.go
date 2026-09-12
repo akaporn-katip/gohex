@@ -85,7 +85,7 @@ func (f *fixture) append(t *testing.T, stream eventstore.StreamID, expected int6
 		}
 		data[i].Metadata = metadata
 	}
-	if err := f.store.Append(context.Background(), stream, expected, data); err != nil {
+	if _, err := f.store.Append(context.Background(), stream, expected, data); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -262,7 +262,7 @@ func TestRelayRetriesPublishWithoutAdvancing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Append(context.Background(), eventstore.StreamID{Category: "order", ID: "42"}, 0,
+	if _, err := store.Append(context.Background(), eventstore.StreamID{Category: "order", ID: "42"}, 0,
 		[]eventstore.EventData{data}); err != nil {
 		t.Fatal(err)
 	}

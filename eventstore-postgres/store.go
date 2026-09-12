@@ -63,18 +63,18 @@ var _ eventstore.Store = (*Store)(nil)
 
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-func (s *Store) Append(ctx context.Context, stream eventstore.StreamID, expectedVersion int64, events []eventstore.EventData) error {
+func (s *Store) Append(ctx context.Context, stream eventstore.StreamID, expectedVersion int64, events []eventstore.EventData) (int64, error) {
 	if len(events) == 0 {
-		return nil
+		return 0, nil
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("espostgres: append: begin: %w", err)
+		return 0, fmt.Errorf("espostgres: append: begin: %w", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // rollback after commit is a no-op
 
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, appendLockKey); err != nil {
-		return fmt.Errorf("espostgres: append: lock: %w", err)
+		return 0, fmt.Errorf("espostgres: append: lock: %w", err)
 	}
 
 	var current int64
@@ -82,31 +82,33 @@ func (s *Store) Append(ctx context.Context, stream eventstore.StreamID, expected
 		`SELECT coalesce(max(version), 0) FROM events WHERE category = $1 AND stream_id = $2`,
 		stream.Category, stream.ID).Scan(&current)
 	if err != nil {
-		return fmt.Errorf("espostgres: append: current version: %w", err)
+		return 0, fmt.Errorf("espostgres: append: current version: %w", err)
 	}
 	if current != expectedVersion {
-		return fmt.Errorf("%w: stream %s/%s at version %d, expected %d",
+		return 0, fmt.Errorf("%w: stream %s/%s at version %d, expected %d",
 			eventstore.ErrVersionConflict, stream.Category, stream.ID, current, expectedVersion)
 	}
 
+	var lastSeq int64
 	for i, e := range events {
 		metadata, err := marshalMetadata(e.Metadata)
 		if err != nil {
-			return fmt.Errorf("espostgres: append: metadata: %w", err)
+			return 0, fmt.Errorf("espostgres: append: metadata: %w", err)
 		}
-		_, err = tx.Exec(ctx, `
+		err = tx.QueryRow(ctx, `
 			INSERT INTO events (category, stream_id, version, event_name, schema_version, payload, metadata)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			RETURNING global_seq`,
 			stream.Category, stream.ID, expectedVersion+int64(i)+1,
-			e.EventName, e.SchemaVersion, e.Payload, metadata)
+			e.EventName, e.SchemaVersion, e.Payload, metadata).Scan(&lastSeq)
 		if err != nil {
-			return fmt.Errorf("espostgres: append: insert: %w", err)
+			return 0, fmt.Errorf("espostgres: append: insert: %w", err)
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("espostgres: append: commit: %w", err)
+		return 0, fmt.Errorf("espostgres: append: commit: %w", err)
 	}
-	return nil
+	return lastSeq, nil
 }
 
 func (s *Store) Load(ctx context.Context, stream eventstore.StreamID, afterVersion int64) ([]eventstore.RecordedEvent, error) {

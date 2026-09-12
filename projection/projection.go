@@ -101,14 +101,16 @@ func integrationKey(name string, version int) string {
 	return name + "@v" + strconv.Itoa(version)
 }
 
-// storeCheckpoint and inboxCheckpoint name the projection's two cursors.
-func (p *Projection) storeCheckpoint() string { return "projection." + p.name + ".store" }
+// StoreCheckpoint names the cursor [CatchUp] keeps on the service's own
+// event store — the checkpoint to pass to [WaitForCheckpoint] for
+// read-your-writes on this projection's views.
+func (p *Projection) StoreCheckpoint() string { return "projection." + p.name + ".store" }
 func (p *Projection) inboxCheckpoint() string { return "projection." + p.name + ".inbox" }
 
 // Reset zeroes both checkpoints so the runners replay from the start.
 // Truncate the projection's read tables before restarting them.
 func Reset(ctx context.Context, cps eventstore.CheckpointStore, p *Projection) error {
-	if err := cps.Set(ctx, p.storeCheckpoint(), 0); err != nil {
+	if err := cps.Set(ctx, p.StoreCheckpoint(), 0); err != nil {
 		return fmt.Errorf("projection %s: reset: %w", p.name, err)
 	}
 	if err := cps.Set(ctx, p.inboxCheckpoint(), 0); err != nil {
