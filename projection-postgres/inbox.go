@@ -43,6 +43,11 @@ var _ projection.Inbox = (*Inbox)(nil)
 
 func NewInbox(pool *pgxpool.Pool) *Inbox { return &Inbox{pool: pool} }
 
+// Append stores msg if its ID is new. The message is stored as jsonb, so
+// it round-trips semantically, not byte-for-byte: Postgres normalizes
+// JSON formatting (whitespace, key order) in the nested payload — the
+// same tolerance the eventstore adapter has. Consumers decode with
+// json.Unmarshal, which is unaffected.
 func (i *Inbox) Append(ctx context.Context, msg broker.Message) error {
 	payload, err := json.Marshal(msg)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -57,8 +58,14 @@ func TestInbox(t *testing.T) {
 	}
 	got := msgs[0].Message
 	if got.ID != msg.ID || got.Type != msg.Type || got.Version != msg.Version ||
-		string(got.Payload) != string(msg.Payload) || got.Metadata["traceparent"] != "00-abc-def-01" {
+		got.Metadata["traceparent"] != "00-abc-def-01" {
 		t.Errorf("round trip lost data: %+v", got)
+	}
+	// jsonb normalizes formatting (whitespace, key order), so payloads
+	// round-trip semantically, not byte-for-byte — same tolerance as the
+	// eventstore contract tests.
+	if !jsonEqual(t, got.Payload, msg.Payload) {
+		t.Errorf("Payload = %s, want JSON-equal to %s", got.Payload, msg.Payload)
 	}
 	if !got.OccurredAt.Equal(msg.OccurredAt) {
 		t.Errorf("OccurredAt = %v, want %v", got.OccurredAt, msg.OccurredAt)
@@ -71,4 +78,16 @@ func TestInbox(t *testing.T) {
 	if len(tail) != 1 || tail[0].Message.ID != "payment/9#2" {
 		t.Fatalf("tail = %+v", tail)
 	}
+}
+
+func jsonEqual(t *testing.T, a, b json.RawMessage) bool {
+	t.Helper()
+	var av, bv any
+	if err := json.Unmarshal(a, &av); err != nil {
+		t.Fatalf("unmarshal %s: %v", a, err)
+	}
+	if err := json.Unmarshal(b, &bv); err != nil {
+		t.Fatalf("unmarshal %s: %v", b, err)
+	}
+	return reflect.DeepEqual(av, bv)
 }
