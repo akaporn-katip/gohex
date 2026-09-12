@@ -1,7 +1,8 @@
 # build-with-gohex changelog
 
 The copy in the gohex repo (`skills/build-with-gohex/`) is the source
-of truth; copies elsewhere (e.g. katipwork/skills) should match its `version`.
+of truth; any copy elsewhere should match its `version`.
+(katipwork/skills, the former mirror, is retired.)
 
 Bump rules:
 
