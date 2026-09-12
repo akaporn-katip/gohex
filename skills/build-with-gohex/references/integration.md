@@ -14,7 +14,8 @@ Canonical examples in the checkouts:
 - `gohex-example/billing/cmd/billing/main.go` — wiring a wire-command consumer with
   postgres dedup.
 - ADR-0004 (domain vs integration events), ADR-0005 (envelope wire format),
-  ADR-0006 (hybrid projections), ADR-0007 (sagas), ADR-0008 (async-only).
+  ADR-0006 (hybrid projections), ADR-0007 (sagas), ADR-0008 (async-only),
+  ADR-0014 (read-your-writes).
 
 ## Contracts: the only shared vocabulary
 
@@ -76,6 +77,21 @@ Handlers must be **idempotent and commutative** — cross-source ordering is not
 guaranteed. Imitate ordering's status-rank trick: `SetStatus` only ever raises
 the rank, so late or repeated facts can't regress the row. Rebuild = reset
 checkpoints (`projection.Reset`), replay store + inbox.
+
+### Read-your-writes on own views (ADR-0014)
+
+Projections are async, so an edge that answers right after a successful
+command may serve a view that hasn't caught up yet. When an endpoint needs
+its own write visible before responding, opt in at the edge — handlers stay
+untouched: capture the write position on the context before dispatching
+(`eventstore.CapturePosition`), then block — bounded by a context deadline —
+until the projection's store checkpoint passes it
+(`projection.WaitForCheckpoint`, name from `Projection.StoreCheckpoint`).
+On timeout answer `202 Accepted` honestly; the write is durable either way.
+Semantics are pinned in `eventstore/position_test.go` and
+`projection/wait_test.go`. **Own views only**: the position is on the local
+store's global sequence — it is not comparable with inbox checkpoints, so
+this never gives cross-service read-your-writes.
 
 ## Sagas (ADR-0007)
 

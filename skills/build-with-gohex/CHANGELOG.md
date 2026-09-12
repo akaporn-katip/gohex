@@ -10,6 +10,16 @@ Bump rules:
 - **major** — restructured workflow files, or guidance changed because a gohex
   guarantee or API contract changed.
 
+## 2.1.0 — 2026-09-13
+
+gohex v0.2.0 adds read-your-writes on a service's own views (ADR-0014):
+`Store.Append` reports the appended position, `eventstore.CapturePosition`
+collects it at the edge, `projection.WaitForCheckpoint` waits — bounded — for
+the view to catch up. New "Read-your-writes on own views" section in
+integration.md; SKILL.md module table and ADR range (now 0001–0014) updated.
+Existing guidance unchanged — services don't implement `Store`, so the
+signature change needs no new advice.
+
 ## 2.0.1 — 2026-08-30
 
 Reference-file headers said "in the gohex checkout" while citing mostly
