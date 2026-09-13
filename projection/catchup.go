@@ -3,6 +3,7 @@ package projection
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/akaporn-katip/gohex/eventstore"
 )
@@ -71,7 +72,17 @@ func (c *CatchUp) Run(ctx context.Context) error {
 				OccurredAt: rec.OccurredAt,
 				Metadata:   rec.Metadata,
 			}
-			if err := handler(ctx, event, meta); err != nil {
+			item := Item{
+				Projection: c.projection.Name(),
+				Source:     SourceStore,
+				Name:       rec.EventName,
+				ID:         rec.Stream.Category + "/" + rec.Stream.ID + "#" + strconv.FormatInt(rec.Version, 10),
+				Metadata:   rec.Metadata,
+			}
+			err = c.cfg.observe(ctx, item, func(ctx context.Context) error {
+				return handler(ctx, event, meta)
+			})
+			if err != nil {
 				return fmt.Errorf("%s: handling %s at seq %d: %w", name, rec.EventName, rec.GlobalSeq, err)
 			}
 		}

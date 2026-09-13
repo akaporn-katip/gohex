@@ -16,7 +16,8 @@
 // in flight), so handlers must be idempotent — upserts keyed by IDs, not
 // blind inserts. And because the two logs have NO cross-ordering (a
 // rebuild may apply a foreign fact before the own event that creates the
-// row), handlers must also be commutative: update the columns you own
+// row), handlers must also be commutative (see [Config.Observe] to trace
+// what the runners apply): update the columns you own
 // (INSERT ... ON CONFLICT DO UPDATE SET ...), never overwrite whole
 // rows. To rebuild: stop the runners, truncate the read tables, call
 // [Reset], restart.
@@ -119,12 +120,64 @@ func Reset(ctx context.Context, cps eventstore.CheckpointStore, p *Projection) e
 	return nil
 }
 
+// Source names which log an [Item] came from.
+type Source string
+
+const (
+	// SourceStore is the service's own event store, tailed by [CatchUp].
+	SourceStore Source = "store"
+	// SourceInbox is the foreign-fact inbox, tailed by [InboxReader].
+	SourceInbox Source = "inbox"
+)
+
+// Item describes one unit a runner is about to hand to a handler. It is
+// observation-only: everything here is already available to handlers.
+type Item struct {
+	// Projection is the projection's name.
+	Projection string
+	// Source is the log the item came from.
+	Source Source
+	// Name is the domain event name or integration event type.
+	Name string
+	// ID identifies the item: the message ID for inbox items,
+	// "category/stream#version" for own-store events.
+	ID string
+	// Metadata is the item's cross-cutting metadata (trace context) —
+	// the stored event's metadata or the envelope's. Do not mutate it.
+	Metadata map[string]string
+}
+
+// Observer wraps the handling of a single item: it derives the context
+// the handler runs under and returns a completion func called with the
+// handler's error (nil on success). The projection module stays free of
+// any telemetry dependency — o11y supplies the implementation
+// (o11y.ProjectionHook).
+type Observer func(ctx context.Context, item Item) (context.Context, func(err error))
+
 // Config tunes the polling runners.
 type Config struct {
 	// PollInterval is the idle wait between empty reads. Default 200ms.
 	PollInterval time.Duration
 	// BatchSize is the maximum events per read. Default 100.
 	BatchSize int
+	// Observe, when set, wraps every handled item (tracing, metrics,
+	// logging). Nil — the default — costs nothing: the runners skip the
+	// call entirely.
+	Observe Observer
+}
+
+// observe runs fn under the configured observer, or directly when none
+// is set.
+func (c Config) observe(ctx context.Context, item Item, fn func(context.Context) error) error {
+	if c.Observe == nil {
+		return fn(ctx)
+	}
+	ctx, done := c.Observe(ctx, item)
+	err := fn(ctx)
+	if done != nil {
+		done(err)
+	}
+	return err
 }
 
 func (c Config) withDefaults() Config {

@@ -75,3 +75,11 @@ _Avoid_: Process manager, workflow (both mean this; "saga" is the canonical term
 
 **Compensation**:
 A command a saga issues to semantically undo an earlier step after a downstream failure.
+
+**Worklist**:
+A table of pending work a service writes for itself and drains with a polling worker ("work the list"): claim a batch on a tick, act, retire the row. Business-paced and retried per row, which is why it is a trace boundary (ADR-0015).
+_Avoid_: Job queue, task table, outbox (the relay owns the outbox role)
+
+**Origin Trace**:
+The trace that caused a piece of durable work, carried as `gohex.origin.traceparent` in metadata. A worker draining a worklist links its new trace to the origin instead of continuing it, so latency stays honest and causality stays queryable.
+_Avoid_: Parent trace, root trace (the origin is neither, by design)

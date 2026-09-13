@@ -19,6 +19,12 @@
 // appended event, and the relay copies stored metadata onto outgoing
 // messages — so the trace survives THROUGH the database into the broker.
 //
+// Durable hand-offs that a POLLING worker picks up later (a pending-list
+// row, a worklist table) do not continue the trace — they start a new
+// one linked to the origin (ADR-0015). See [StartLinked], [StartBatch],
+// [LinkFrom], [OriginMetadata] and, for the projection runners,
+// [ProjectionHook].
+//
 // This slice covers traces and slog; metrics land with the example
 // services.
 package o11y
@@ -61,7 +67,10 @@ func Init(ctx context.Context, cfg Config) (shutdown func(context.Context) error
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{}, propagation.Baggage{}))
 	eventstore.SetContextMetadata(func(ctx context.Context) map[string]string {
-		return Inject(ctx, nil)
+		// The origin stamp (if a worker put one on ctx, ADR-0015) travels
+		// alongside the live trace context, so a linked trace stays
+		// traceable to its origin one hop further on.
+		return Inject(ctx, originFromContext(ctx))
 	})
 	slog.SetDefault(slog.New(NewLogHandler(slog.NewJSONHandler(os.Stdout, nil))))
 

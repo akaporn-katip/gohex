@@ -136,7 +136,17 @@ func (r *InboxReader) Run(ctx context.Context) error {
 			if !ok {
 				continue
 			}
-			if err := handler(ctx, m.Message); err != nil {
+			item := Item{
+				Projection: r.projection.Name(),
+				Source:     SourceInbox,
+				Name:       m.Message.Type,
+				ID:         m.Message.ID,
+				Metadata:   m.Message.Metadata,
+			}
+			err := r.cfg.observe(ctx, item, func(ctx context.Context) error {
+				return handler(ctx, m.Message)
+			})
+			if err != nil {
 				return fmt.Errorf("%s: handling %s (message %s): %w", name, m.Message.Type, m.Message.ID, err)
 			}
 		}
