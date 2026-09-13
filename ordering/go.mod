@@ -7,14 +7,14 @@ require (
 	github.com/akaporn-katip/gohex/broker v0.1.0
 	github.com/akaporn-katip/gohex/broker-kafka v0.1.0
 	github.com/akaporn-katip/gohex/cqrs v0.1.0
-	github.com/akaporn-katip/gohex/eventstore v0.1.0
-	github.com/akaporn-katip/gohex/eventstore-postgres v0.1.0
+	github.com/akaporn-katip/gohex/eventstore v0.2.0
+	github.com/akaporn-katip/gohex/eventstore-postgres v0.2.0
 	github.com/akaporn-katip/gohex/kernel v0.1.0
-	github.com/akaporn-katip/gohex/o11y v0.1.0
-	github.com/akaporn-katip/gohex/projection v0.1.0
-	github.com/akaporn-katip/gohex/projection-postgres v0.1.0
-	github.com/akaporn-katip/gohex/relay v0.1.0
-	github.com/akaporn-katip/gohex/saga v0.1.0
+	github.com/akaporn-katip/gohex/o11y v0.3.0
+	github.com/akaporn-katip/gohex/projection v0.3.0
+	github.com/akaporn-katip/gohex/projection-postgres v0.2.0
+	github.com/akaporn-katip/gohex/relay v0.2.0
+	github.com/akaporn-katip/gohex/saga v0.2.0
 	github.com/jackc/pgx/v5 v5.7.6
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0
 	golang.org/x/sync v0.13.0

@@ -19,3 +19,11 @@ _Avoid_: Order processing, workflow
 
 **Customer**:
 The buyer, owned by an unmodeled external context and referenced by ID only.
+
+**Customer Notification**:
+Telling the customer about a milestone (`shipped`, `payment_failed`). The projection only queues it on the `pending_notification` worklist; the Notifier worker sends it on a later tick and records it on the order.
+_Avoid_: Alert, email (the channel is not modeled)
+
+**Notifier**:
+Ordering's polling worker: every tick it claims a batch of pending notifications and dispatches one command per row, under a trace linked back to the request that queued it (gohex ADR-0015).
+_Avoid_: Job runner, cron, dispatcher

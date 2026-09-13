@@ -5,7 +5,11 @@ A runnable example system for the
 order fulfillment across four services — `ordering`, `billing`,
 `inventory`, `shipping` — talking **only** through Kafka: commands in,
 facts out. The `ordering` service hosts the fulfillment saga and an
-`order_summary` read model fed by all four services' events.
+`order_summary` read model fed by all four services' events. It also runs
+the reference **polling worker**: the projection queues customer
+notifications on a worklist, and `ordering`'s Notifier drains it every
+few seconds — each row's work is its own trace, *linked* back to the
+request that caused it (gohex ADR-0015), never a continuation of it.
 
 Each service is a full hexagon
 (`internal/{domain,app,ports,adapters}` + `cmd`); the shared public

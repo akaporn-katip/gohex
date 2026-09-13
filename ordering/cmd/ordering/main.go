@@ -56,7 +56,7 @@ func run() error {
 	}
 	defer pool.Close()
 	for _, migrate := range []func(context.Context, *pgxpool.Pool) error{
-		espostgres.Migrate, projectionpg.Migrate, postgres.Migrate,
+		espostgres.Migrate, projectionpg.Migrate, postgres.Migrate, postgres.MigrateNotifications,
 	} {
 		if err := migrate(ctx, pool); err != nil {
 			return err
@@ -68,6 +68,7 @@ func run() error {
 	store := espostgres.New(pool)
 	checkpoints := espostgres.NewCheckpoints(pool)
 	summaries := postgres.NewSummaryStore(pool)
+	notifications := postgres.NewNotificationQueue(pool)
 
 	kafka, err := kafkabroker.New(envOr("KAFKA_BROKERS", "localhost:9092"))
 	if err != nil {
@@ -95,10 +96,18 @@ func run() error {
 
 	// Projection: order_summary from own events + foreign facts via the
 	// inbox (ADR-0006).
-	summary := app.NewOrderSummaryProjection(summaries)
+	// Observe traces every apply; the runners are pollers, so each apply
+	// is its own trace linked to the event that caused it (ADR-0015).
+	summary := app.NewOrderSummaryProjection(summaries, notifications)
 	inbox := projectionpg.NewInbox(pool)
-	catchUp := projection.NewCatchUp(summary, store, registry, checkpoints, projection.Config{})
-	inboxReader := projection.NewInboxReader(summary, inbox, checkpoints, projection.Config{})
+	projectionCfg := projection.Config{Observe: o11y.ProjectionHook()}
+	catchUp := projection.NewCatchUp(summary, store, registry, checkpoints, projectionCfg)
+	inboxReader := projection.NewInboxReader(summary, inbox, checkpoints, projectionCfg)
+
+	// Notifier: the polling worker draining the notification worklist the
+	// projection fills. Its work links back to the originating request
+	// rather than continuing its trace (ADR-0015).
+	notifier := app.NewNotifier(notifications, bus, app.NotifierConfig{})
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return rly.Run(ctx) })
@@ -107,6 +116,7 @@ func run() error {
 	})
 	g.Go(func() error { return catchUp.Run(ctx) })
 	g.Go(func() error { return inboxReader.Run(ctx) })
+	g.Go(func() error { return notifier.Run(ctx) })
 	for _, topic := range app.ForeignTopics {
 		writer := projection.NewInboxWriter(subscriber, inbox, topic, "ordering.order_summary")
 		g.Go(func() error { return writer.Run(ctx) })

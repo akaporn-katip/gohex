@@ -36,6 +36,29 @@ type OrderSummary struct {
 	PlacedAt   time.Time `json:"placed_at"`
 }
 
+// PendingNotification is one row of the notification worklist: a
+// customer milestone the projection saw and a worker still has to act
+// on. Metadata is the originating envelope's cross-cutting metadata
+// (trace context) — captured at projection time, replayed by the worker
+// so the action links back to the request that caused it (ADR-0015).
+type PendingNotification struct {
+	ID       int64
+	OrderID  string
+	Reason   string
+	Metadata map[string]string
+}
+
+// NotificationQueue is the worklist port: written by the projection,
+// drained by the Notifier worker. Enqueue is idempotent per
+// (order, reason) — the projection is at-least-once.
+type NotificationQueue interface {
+	Enqueue(ctx context.Context, orderID, reason string, metadata map[string]string) error
+	// Pending returns up to limit unsent rows, oldest first.
+	Pending(ctx context.Context, limit int) ([]PendingNotification, error)
+	// MarkSent retires a row; marking a retired row again is a no-op.
+	MarkSent(ctx context.Context, id int64) error
+}
+
 // SummaryStore is the read-model port. Both writers are commutative:
 // UpsertPlaced never downgrades a status a foreign event already set,
 // and SetStatus only raises the rank.

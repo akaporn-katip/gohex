@@ -9,6 +9,7 @@ import (
 	"github.com/akaporn-katip/gohex/broker"
 	"github.com/akaporn-katip/gohex/cqrs"
 	"github.com/akaporn-katip/gohex/eventstore"
+	"github.com/akaporn-katip/gohex/kernel"
 	"github.com/akaporn-katip/gohex/relay"
 	"github.com/akaporn-katip/gohex/saga"
 	"github.com/akaporn-katip/gohex-example/contracts"
@@ -20,6 +21,7 @@ import (
 // events (this service hosts the fulfillment saga).
 func RegisterEvents(r *eventstore.Registry) {
 	eventstore.Register[domain.OrderPlaced](r)
+	eventstore.Register[domain.CustomerNotified](r)
 	saga.RegisterEvents(r)
 }
 
@@ -49,6 +51,15 @@ type PlaceOrder struct {
 
 func (PlaceOrder) CommandName() string { return "ordering.place_order" }
 
+// NotifyCustomer is dispatched by the [Notifier] worker, one per claimed
+// worklist row. Local only: no other service sends it.
+type NotifyCustomer struct {
+	OrderID string
+	Reason  string
+}
+
+func (NotifyCustomer) CommandName() string { return "ordering.notify_customer" }
+
 // GetOrder is the read-side query for one order summary.
 type GetOrder struct {
 	OrderID string
@@ -73,6 +84,7 @@ func New(store eventstore.Store, registry *eventstore.Registry, summaries ports.
 // Register wires the handlers onto the buses.
 func (h *Handlers) Register(bus *cqrs.Bus, queries *cqrs.QueryBus) {
 	cqrs.Handle(bus, h.PlaceOrder)
+	cqrs.Handle(bus, h.NotifyCustomer)
 	cqrs.HandleQuery(queries, h.GetOrder)
 }
 
@@ -82,6 +94,24 @@ func (h *Handlers) PlaceOrder(ctx context.Context, cmd PlaceOrder) error {
 		return err
 	}
 	return h.orders.Save(ctx, cmd.ID, o)
+}
+
+// NotifyCustomer records the notification on the order. Idempotent: a
+// reason already recorded saves nothing, so the worker's at-least-once
+// dispatch is safe.
+func (h *Handlers) NotifyCustomer(ctx context.Context, cmd NotifyCustomer) error {
+	id, err := kernel.ParseID[domain.Order](cmd.OrderID)
+	if err != nil {
+		return err
+	}
+	o, err := h.orders.Load(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := o.Notify(cmd.Reason); err != nil {
+		return err
+	}
+	return h.orders.Save(ctx, id, o)
 }
 
 func (h *Handlers) GetOrder(ctx context.Context, q GetOrder) (ports.OrderSummary, error) {

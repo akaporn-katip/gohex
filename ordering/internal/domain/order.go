@@ -16,6 +16,7 @@ var (
 	ErrInvalidAmount   = kernel.NewDomainError("invalid_amount", "amount must be positive")
 	ErrInvalidCurrency = kernel.NewDomainError("invalid_currency", "currency must be a 3-letter code")
 	ErrInvalidQuantity = kernel.NewDomainError("invalid_quantity", "quantity must be positive")
+	ErrEmptyReason     = kernel.NewDomainError("empty_reason", "a notification needs a reason")
 )
 
 // Customer is the marker type for customer identifiers; customers are
@@ -120,6 +121,16 @@ type OrderPlaced struct {
 
 func (OrderPlaced) EventName() string { return "ordering.order_placed" }
 
+// CustomerNotified records that the customer was told about a milestone
+// ("shipped", "payment_failed"). Private to ordering (ADR-0004): no
+// translator publishes it.
+type CustomerNotified struct {
+	ID     OrderID `json:"id"`
+	Reason string  `json:"reason"`
+}
+
+func (CustomerNotified) EventName() string { return "ordering.customer_notified" }
+
 // Category is the aggregate's stream category.
 const Category = "order"
 
@@ -134,6 +145,7 @@ type Order struct {
 	customer CustomerID
 	total    Money
 	qty      Quantity
+	notified map[string]bool
 }
 
 func NewOrder() *Order { return &Order{} }
@@ -150,6 +162,19 @@ func Place(id OrderID, customer CustomerID, total Money, qty Quantity) (*Order, 
 	return o, nil
 }
 
+// Notify records a customer notification. Re-notifying for the same
+// reason is a no-op, which is what makes the notification worker's
+// at-least-once dispatch safe.
+func (o *Order) Notify(reason string) error {
+	if reason == "" {
+		return ErrEmptyReason
+	}
+	if o.notified[reason] {
+		return nil
+	}
+	return kernel.Raise(o, CustomerNotified{ID: o.id, Reason: reason})
+}
+
 func (o *Order) Apply(e kernel.DomainEvent) error {
 	switch ev := e.(type) {
 	case OrderPlaced:
@@ -157,6 +182,11 @@ func (o *Order) Apply(e kernel.DomainEvent) error {
 		o.customer = ev.Customer
 		o.total = ev.Total
 		o.qty = ev.Qty
+	case CustomerNotified:
+		if o.notified == nil {
+			o.notified = map[string]bool{}
+		}
+		o.notified[ev.Reason] = true
 	default:
 		return fmt.Errorf("order: unknown event %q", e.EventName())
 	}
