@@ -11,6 +11,16 @@ Bump rules:
 - **major** — restructured workflow files, or guidance changed because a gohex
   guarantee or API contract changed.
 
+## 2.2.0 — 2026-09-13
+
+gohex adds trace boundaries at durable hand-offs (ADR-0015): o11y v0.3.0
+ships `StartLinked`, `StartBatch`, `LinkFrom`, `OriginMetadata` and
+`ProjectionHook`; projection v0.3.0 adds the optional `Config.Observe`
+hook the runners call per item. New "Polling workers: link, don't
+continue" section in o11y.md, plus a sharper Verify step (worker work is
+a separate, linked trace by design) and pointers to the example's
+Notifier. SKILL.md ADR range is now 0001–0015.
+
 ## 2.1.0 — 2026-09-13
 
 gohex v0.2.0 adds read-your-writes on a service's own views (ADR-0014):
