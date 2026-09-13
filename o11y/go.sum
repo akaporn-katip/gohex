@@ -6,6 +6,8 @@ github.com/akaporn-katip/gohex/eventstore v0.2.0 h1:E0bSo8NnvbwanNcnpgBL/OQpmTQQ
 github.com/akaporn-katip/gohex/eventstore v0.2.0/go.mod h1:s6Lg72KaA8siNrSqzMyhnKlYtd352l0xGMdPZG8lw08=
 github.com/akaporn-katip/gohex/kernel v0.1.0 h1:a+1Fl0lBphLXdSJ6uHTC8+668hJqnSvLVt4vV4Z5y50=
 github.com/akaporn-katip/gohex/kernel v0.1.0/go.mod h1:XrhNlorYqiV+WW0pZraeiDdshS2X5PwxRZv0zYZ9Yl4=
+github.com/akaporn-katip/gohex/projection v0.3.0 h1:DFYIJ/1M444SQUWc0Snb9zMG3YjUyZ/rvMpxR6564Cc=
+github.com/akaporn-katip/gohex/projection v0.3.0/go.mod h1:WPvUG6Gn2dbJE8lKqQ2P3sFMsF2C1+dGwfzMRm7ISlU=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=
 github.com/cenkalti/backoff/v4 v4.3.0/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyYozVcomhLiZE=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
