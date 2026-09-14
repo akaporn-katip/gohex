@@ -28,6 +28,8 @@ func (p *tracingPublisher) Publish(ctx context.Context, topic string, msgs ...br
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
 			attribute.String("messaging.destination.name", topic),
+			attribute.String("messaging.operation.name", "publish"),
+			attribute.String("messaging.operation.type", "send"),
 			attribute.Int("messaging.batch.message_count", len(msgs)),
 		))
 	defer span.End()
@@ -48,6 +50,10 @@ func (p *tracingPublisher) Publish(ctx context.Context, topic string, msgs ...br
 // Subscriber wraps a broker subscriber so every delivered message is
 // handled inside a consumer span that continues the trace carried in the
 // message's metadata. Each redelivery gets its own span.
+//
+// The span is named "consume <group> <messageType>" (ADR-0016): one fact
+// published to one topic is consumed by every service integrating on it,
+// and the topic alone renders those rows identically in a waterfall.
 func Subscriber(next broker.Subscriber) broker.Subscriber {
 	return &tracingSubscriber{next: next}
 }
@@ -59,12 +65,14 @@ type tracingSubscriber struct {
 func (s *tracingSubscriber) Subscribe(ctx context.Context, topic, group string, handler broker.Handler) error {
 	return s.next.Subscribe(ctx, topic, group, func(ctx context.Context, msg broker.Message) error {
 		ctx = Extract(ctx, msg.Metadata)
-		ctx, span := tracer().Start(ctx, "consume "+topic,
+		ctx, span := tracer().Start(ctx, consumeSpanName(topic, group, msg.Type),
 			trace.WithSpanKind(trace.SpanKindConsumer),
 			trace.WithAttributes(
 				attribute.String("messaging.destination.name", topic),
 				attribute.String("messaging.consumer.group.name", group),
 				attribute.String("messaging.message.id", msg.ID),
+				attribute.String("messaging.operation.name", "consume"),
+				attribute.String("messaging.operation.type", "process"),
 				attribute.String("gohex.message.type", msg.Type),
 			))
 		defer span.End()
@@ -76,4 +84,20 @@ func (s *tracingSubscriber) Subscribe(ctx context.Context, topic, group string, 
 		}
 		return err
 	})
+}
+
+// consumeSpanName degrades one field at a time: the group identifies WHO
+// is consuming (services name theirs "<service>.<projection>"), the
+// message type WHAT they are consuming. A subscriber wired without a
+// group, or a message with no type, still gets a name that says where
+// the work happened.
+func consumeSpanName(topic, group, messageType string) string {
+	switch {
+	case group != "" && messageType != "":
+		return "consume " + group + " " + messageType
+	case group != "":
+		return "consume " + group
+	default:
+		return "consume " + topic
+	}
 }

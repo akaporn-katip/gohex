@@ -133,7 +133,7 @@ func TestSubscriberContinuesTraceAndSpansErrors(t *testing.T) {
 	spans := exporter.GetSpans()
 	var consumeErr, consumeOK bool
 	for _, s := range spans {
-		if s.Name != "consume t" {
+		if s.Name != "consume g x" {
 			continue
 		}
 		if s.Status.Code == codes.Error {
@@ -150,6 +150,74 @@ func TestSubscriberContinuesTraceAndSpansErrors(t *testing.T) {
 type testCmd struct{}
 
 func (testCmd) CommandName() string { return "billing.capture_payment" }
+
+// TestConsumeSpanNameCarriesConsumerAndFact pins ADR-0016's naming and
+// its fallbacks: the group says who is consuming, the type says what.
+func TestConsumeSpanNameCarriesConsumerAndFact(t *testing.T) {
+	cases := []struct {
+		name, group, msgType, want string
+	}{
+		{"group and type", "billing.billing_views", "tenancy.lease_started",
+			"consume billing.billing_views tenancy.lease_started"},
+		{"typeless message", "billing.billing_views", "", "consume billing.billing_views"},
+		{"groupless subscriber", "", "tenancy.lease_started", "consume tenancy.events"},
+		{"neither", "", "", "consume tenancy.events"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			exporter := setup(t)
+			stub := deliverOne(t, exporter, "tenancy.events", tc.group,
+				broker.Message{ID: "tenancy/1#1", Type: tc.msgType})
+			if stub.Name != tc.want {
+				t.Errorf("span name = %q, want %q", stub.Name, tc.want)
+			}
+		})
+	}
+}
+
+// TestConsumeSpanKeepsSemconvAttributes: the name changed, the queryable
+// surface did not — everything a dashboard groups by is still there.
+func TestConsumeSpanKeepsSemconvAttributes(t *testing.T) {
+	exporter := setup(t)
+	stub := deliverOne(t, exporter, "tenancy.events", "billing.billing_views",
+		broker.Message{ID: "tenancy/1#1", Type: "tenancy.lease_started"})
+
+	for key, want := range map[string]string{
+		"messaging.destination.name":    "tenancy.events",
+		"messaging.consumer.group.name": "billing.billing_views",
+		"messaging.message.id":          "tenancy/1#1",
+		"messaging.operation.name":      "consume",
+		"messaging.operation.type":      "process",
+		"gohex.message.type":            "tenancy.lease_started",
+	} {
+		if !hasAttr(stub, key, want) {
+			t.Errorf("%s != %q; attributes = %v", key, want, stub.Attributes)
+		}
+	}
+}
+
+// TestFanOutConsumersAreDistinguishableByName is the defect this naming
+// exists to fix: four services pulling the same fact used to render as
+// four identical waterfall rows.
+func TestFanOutConsumersAreDistinguishableByName(t *testing.T) {
+	exporter := setup(t)
+	groups := []string{"billing.billing_views", "notification.outbox", "payment.ledger", "subscription.plans"}
+	for _, group := range groups {
+		deliverOne(t, exporter, "tenancy.events", group,
+			broker.Message{ID: "tenancy/1#1", Type: "tenancy.lease_started"})
+	}
+
+	names := map[string]bool{}
+	for _, s := range exporter.GetSpans() {
+		names[s.Name] = true
+	}
+	for _, group := range groups {
+		want := "consume " + group + " tenancy.lease_started"
+		if !names[want] {
+			t.Errorf("missing distinct span %q; got %v", want, spanNames(exporter.GetSpans()))
+		}
+	}
+}
 
 func TestCommandMiddlewareRejectionIsNotSpanError(t *testing.T) {
 	exporter := setup(t)
@@ -319,6 +387,43 @@ func TestLogHandlerAddsTraceIDs(t *testing.T) {
 }
 
 // --- helpers ---
+
+// deliverOne runs one message through the traced subscriber and returns
+// the consume span it produced. Each subscriber gets its own broker so
+// group offsets never interfere.
+func deliverOne(t *testing.T, exporter *tracetest.InMemoryExporter, topic, group string, msg broker.Message) tracetest.SpanStub {
+	t.Helper()
+	mem := broker.NewMemoryBroker()
+	if err := mem.Publish(context.Background(), topic, msg); err != nil {
+		t.Fatal(err)
+	}
+	before := len(exporter.GetSpans())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	delivered := make(chan struct{})
+	var once sync.Once
+	go func() {
+		_ = o11y.Subscriber(mem).Subscribe(ctx, topic, group, func(context.Context, broker.Message) error {
+			once.Do(func() { close(delivered) })
+			return nil
+		})
+	}()
+	select {
+	case <-delivered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("message never consumed")
+	}
+	// The span ends after the handler returns, so wait for the export.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if spans := exporter.GetSpans(); len(spans) > before {
+			return spans[len(spans)-1]
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	t.Fatal("no consume span was exported")
+	return tracetest.SpanStub{}
+}
 
 func collect(t *testing.T, b *broker.MemoryBroker, topic string, n int) []broker.Message {
 	t.Helper()

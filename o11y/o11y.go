@@ -19,6 +19,23 @@
 // appended event, and the relay copies stored metadata onto outgoing
 // messages — so the trace survives THROUGH the database into the broker.
 //
+// Span names say who is doing what, not just where (ADR-0016). The OTel
+// messaging conventions ask for "<operation> <destination>" but allow a
+// documented system-specific format, and this is the documentation:
+//
+//	publish <topic>                    e.g. publish tenancy.events
+//	consume <group> <messageType>      e.g. consume billing.billing_views tenancy.lease_started
+//	project <projection> <messageType> e.g. project billing_views tenancy.lease_started
+//	command <commandName>              e.g. command tenancy.start_lease
+//
+// A producer's destination is the topic, so "publish" keeps it. A
+// consumer's destination is shared by every service integrating on the
+// fact, so the consumer group (conventionally "<service>.<projection>")
+// and the message type carry the name instead; without them a fan-out of
+// five services renders as five identical rows. Both are compile-time
+// sets, so cardinality stays bounded. Names degrade field by field:
+// "consume <group>", then "consume <topic>".
+//
 // Durable hand-offs that a POLLING worker picks up later (a pending-list
 // row, a worklist table) do not continue the trace — they start a new
 // one linked to the origin (ADR-0015). See [StartLinked], [StartBatch],

@@ -12,7 +12,9 @@ import (
 
 // ProjectionHook is the observer for the projection runners: every
 // applied event gets a span carrying the item's identity, so read-model
-// work stops being invisible.
+// work stops being invisible. The span is named
+// "project <projection> <messageType>" (ADR-0016) — a projection applies
+// many kinds of fact, and only the name shows in a waterfall row.
 //
 //	projection.Config{Observe: o11y.ProjectionHook()}
 //
@@ -29,20 +31,24 @@ func ProjectionHook(opts ...ProjectionOption) projection.Observer {
 		opt(&cfg)
 	}
 	return func(ctx context.Context, item projection.Item) (context.Context, func(error)) {
-		name := "project " + item.Projection
-		attrs := trace.WithAttributes(
+		name := projectSpanName(item)
+		attrs := []attribute.KeyValue{
 			attribute.String("gohex.projection.name", item.Projection),
 			attribute.String("gohex.projection.source", string(item.Source)),
 			attribute.String("gohex.message.type", item.Name),
 			attribute.String("messaging.message.id", item.ID),
-		)
+			attribute.String("messaging.operation.name", "project"),
+		}
 
 		var span trace.Span
 		if cfg.continueTrace {
+			// StartLinked stamps messaging.operation.type itself; this branch
+			// bypasses it, so match what the linked span reports.
+			attrs = append(attrs, attribute.String("messaging.operation.type", "process"))
 			ctx, span = tracer().Start(Extract(ctx, item.Metadata), name,
-				trace.WithSpanKind(trace.SpanKindConsumer), attrs)
+				trace.WithSpanKind(trace.SpanKindConsumer), trace.WithAttributes(attrs...))
 		} else {
-			ctx, span = StartLinked(ctx, name, item.Metadata, attrs)
+			ctx, span = StartLinked(ctx, name, item.Metadata, trace.WithAttributes(attrs...))
 		}
 		return ctx, func(err error) {
 			if err != nil {
@@ -52,6 +58,15 @@ func ProjectionHook(opts ...ProjectionOption) projection.Observer {
 			span.End()
 		}
 	}
+}
+
+// projectSpanName falls back to the bare projection name for items that
+// carry no type — a runner is still worth locating in a trace.
+func projectSpanName(item projection.Item) string {
+	if item.Name == "" {
+		return "project " + item.Projection
+	}
+	return "project " + item.Projection + " " + item.Name
 }
 
 // ProjectionOption configures [ProjectionHook].
