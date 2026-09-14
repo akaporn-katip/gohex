@@ -36,14 +36,24 @@
 // sets, so cardinality stays bounded. Names degrade field by field:
 // "consume <group>", then "consume <topic>".
 //
+// The relay publishes from a poll tick that has no span of its own, so
+// [Publisher] takes its parent from the batch when the caller offers
+// none: a batch that all came from one trace makes the publish a child
+// of that trace, a mixed batch makes it a linked new root. The publish
+// step therefore appears where a reader expects it, between the command
+// that wrote the event and the consumers that read it.
+//
 // Durable hand-offs that a POLLING worker picks up later (a pending-list
 // row, a worklist table) do not continue the trace — they start a new
-// one linked to the origin (ADR-0015). See [StartLinked], [StartBatch],
+// one linked to the origin (ADR-0015). That boundary is about the
+// waiting, not about the I/O either side of it: the tick, its lag and
+// its health live on the worker's own spans, and an origin stamp is
+// always a link, never a parent. See [StartLinked], [StartBatch],
 // [LinkFrom], [OriginMetadata] and, for the projection runners,
 // [ProjectionHook].
 //
-// This slice covers traces and slog; metrics land with the example
-// services.
+// This slice covers traces and slog; metrics are a separate concern and
+// no MeterProvider is installed here.
 package o11y
 
 import (
