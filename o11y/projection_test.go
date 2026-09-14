@@ -40,7 +40,7 @@ func TestProjectionHookLinksInsteadOfContinuing(t *testing.T) {
 	}
 	done(nil)
 
-	stub := spanNamed(t, exporter.GetSpans(), "project order_summary")
+	stub := spanNamed(t, exporter.GetSpans(), "project order_summary billing.payment_captured")
 	if stub.Parent.IsValid() {
 		t.Error("projection span must be a new root")
 	}
@@ -72,9 +72,31 @@ func TestProjectionHookContinueTraceOptsOut(t *testing.T) {
 	}
 	done(errors.New("read model db down"))
 
+	// The item carries no type, so the name falls back to the projection.
 	stub := spanNamed(t, exporter.GetSpans(), "project order_summary")
 	if stub.Status.Code != codes.Error {
 		t.Error("handler failure must mark the span")
+	}
+}
+
+// TestProjectSpanNameCarriesTheFact: one projection applies many kinds
+// of event, and only the name shows in a waterfall row (ADR-0016).
+func TestProjectSpanNameCarriesTheFact(t *testing.T) {
+	exporter := setup(t)
+
+	hook := o11y.ProjectionHook()
+	_, done := hook(context.Background(), projection.Item{
+		Projection: "billing_views",
+		Source:     projection.SourceInbox,
+		Name:       "tenancy.lease_started",
+		ID:         "tenancy/1#1",
+	})
+	done(nil)
+
+	stub := spanNamed(t, exporter.GetSpans(), "project billing_views tenancy.lease_started")
+	if !hasAttr(stub, "messaging.operation.name", "project") ||
+		!hasAttr(stub, "messaging.operation.type", "process") {
+		t.Errorf("operation attributes missing: %v", stub.Attributes)
 	}
 }
 
@@ -127,7 +149,7 @@ func TestProjectionHookRunsInsideTheRunners(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		for _, s := range exporter.GetSpans() {
-			if s.Name == "project order_summary" && linkedTo(s, origin) {
+			if s.Name == "project order_summary billing.payment_captured" && linkedTo(s, origin) {
 				return
 			}
 		}
