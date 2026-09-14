@@ -89,6 +89,183 @@ func TestPublisherInjectsOnlyIfAbsent(t *testing.T) {
 	}
 }
 
+// TestPublisherInjectsOnlyIfAbsentInEveryBranch walks the same rule
+// through all three parenting branches: whichever home the publish span
+// finds, a message that already carries a trace keeps it, so consumers
+// continue the ORIGINAL trace and never the publish span.
+func TestPublisherInjectsOnlyIfAbsentInEveryBranch(t *testing.T) {
+	cases := []struct {
+		name     string
+		inCtx    bool
+		stamped  int // messages already carrying a creation context
+		fresh    int // messages carrying none
+		sameMeta bool
+	}{
+		{name: "in-request, mixed batch", inCtx: true, stamped: 1, fresh: 1},
+		{name: "relay, one shared context", stamped: 2, sameMeta: true},
+		{name: "relay, mixed contexts", stamped: 2},
+		{name: "relay, mixed and absent", stamped: 1, fresh: 1},
+		{name: "relay, nothing carried", fresh: 2},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setup(t)
+			mem := broker.NewMemoryBroker()
+			pub := o11y.Publisher(mem)
+
+			ctx := context.Background()
+			if tc.inCtx {
+				var span trace.Span
+				ctx, span = rootSpan(t)
+				defer span.End()
+			}
+			var msgs []broker.Message
+			var want []string
+			shared, _ := originMeta(t)
+			for i := 0; i < tc.stamped; i++ {
+				meta := shared
+				if !tc.sameMeta {
+					meta, _ = originMeta(t)
+				}
+				msgs = append(msgs, broker.Message{ID: "s", Type: "x", Metadata: cloneMeta(meta)})
+				want = append(want, meta["traceparent"])
+			}
+			for i := 0; i < tc.fresh; i++ {
+				msgs = append(msgs, broker.Message{ID: "f", Type: "x"})
+				want = append(want, "")
+			}
+			if err := pub.Publish(ctx, "t", msgs...); err != nil {
+				t.Fatal(err)
+			}
+
+			got := collect(t, mem, "t", len(msgs))
+			for i, tp := range want {
+				switch {
+				case tp == "" && got[i].Metadata["traceparent"] == "":
+					t.Errorf("message %d was never injected", i)
+				case tp != "" && got[i].Metadata["traceparent"] != tp:
+					t.Errorf("message %d: traceparent %q, want the carried %q",
+						i, got[i].Metadata["traceparent"], tp)
+				}
+			}
+		})
+	}
+}
+
+// TestPublisherAdoptsASharedCreationContext is the fix for the 115ms
+// hole: the relay publishes from a poll tick that carries no span, so
+// the batch's own stored traceparent — the custom creation context the
+// messaging conventions talk about — becomes the publish span's parent
+// instead of the span orphaning itself into a trace of its own.
+func TestPublisherAdoptsASharedCreationContext(t *testing.T) {
+	exporter := setup(t)
+	mem := broker.NewMemoryBroker()
+	pub := o11y.Publisher(mem)
+	meta, origin := originMeta(t)
+
+	if err := pub.Publish(context.Background(), "tenancy.events",
+		broker.Message{ID: "tenancy/1#1", Type: "tenancy.lease_started", Metadata: cloneMeta(meta)},
+		broker.Message{ID: "tenancy/1#2", Type: "tenancy.lease_activated", Metadata: cloneMeta(meta)},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	stub := spanNamed(t, exporter.GetSpans(), "publish tenancy.events")
+	if stub.Parent.TraceID() != origin.TraceID() || stub.Parent.SpanID() != origin.SpanID() {
+		t.Errorf("publish parent = %v, want the batch's creation context %s/%s",
+			stub.Parent, origin.TraceID(), origin.SpanID())
+	}
+	if len(stub.Links) != 0 {
+		t.Errorf("no links wanted when the context is the parent: %v", stub.Links)
+	}
+}
+
+// TestPublisherLinksAMixedBatchFromANewRoot: a batch belonging to
+// several traces has no honest parent, so it gets links instead.
+func TestPublisherLinksAMixedBatchFromANewRoot(t *testing.T) {
+	exporter := setup(t)
+	mem := broker.NewMemoryBroker()
+	pub := o11y.Publisher(mem)
+
+	first, one := originMeta(t)
+	second, two := originMeta(t)
+	if err := pub.Publish(context.Background(), "tenancy.events",
+		broker.Message{ID: "a", Metadata: cloneMeta(first)},
+		broker.Message{ID: "a-again", Metadata: cloneMeta(first)}, // same context, one link
+		broker.Message{ID: "b", Metadata: cloneMeta(second)},
+		broker.Message{ID: "c"}, // no context at all
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	stub := spanNamed(t, exporter.GetSpans(), "publish tenancy.events")
+	if stub.Parent.IsValid() {
+		t.Errorf("mixed batch must publish from a new root, parent = %v", stub.Parent)
+	}
+	if len(stub.Links) != 2 {
+		t.Errorf("links = %d, want one per distinct creation context", len(stub.Links))
+	}
+	if !linkedTo(stub, one) || !linkedTo(stub, two) {
+		t.Errorf("links %v do not cover both origins", stub.Links)
+	}
+	if !hasIntAttr(stub, "gohex.publish.trace_count", 2) {
+		t.Errorf("trace count missing: %v", stub.Attributes)
+	}
+}
+
+// TestPublisherCapsLinks: a relay tick can drain a hundred traces; the
+// span reports how many it saw without carrying a link for each.
+func TestPublisherCapsLinks(t *testing.T) {
+	exporter := setup(t)
+	mem := broker.NewMemoryBroker()
+	pub := o11y.Publisher(mem)
+
+	const batch = 12
+	var msgs []broker.Message
+	for i := 0; i < batch; i++ {
+		meta, _ := originMeta(t)
+		msgs = append(msgs, broker.Message{ID: "m", Metadata: cloneMeta(meta)})
+	}
+	if err := pub.Publish(context.Background(), "tenancy.events", msgs...); err != nil {
+		t.Fatal(err)
+	}
+
+	stub := spanNamed(t, exporter.GetSpans(), "publish tenancy.events")
+	if len(stub.Links) != 8 {
+		t.Errorf("links = %d, want the cap of 8", len(stub.Links))
+	}
+	if !hasIntAttr(stub, "gohex.publish.trace_count", batch) {
+		t.Errorf("capped links must still report the true count: %v", stub.Attributes)
+	}
+}
+
+// TestPublisherInRequestKeepsItsCaller guards the synchronous path: a
+// publish inside a request stays a child of that request, whatever the
+// messages carry.
+func TestPublisherInRequestKeepsItsCaller(t *testing.T) {
+	exporter := setup(t)
+	mem := broker.NewMemoryBroker()
+	pub := o11y.Publisher(mem)
+	foreign, origin := originMeta(t)
+
+	ctx, root := rootSpan(t)
+	if err := pub.Publish(ctx, "tenancy.events",
+		broker.Message{ID: "fresh"},
+		broker.Message{ID: "carried", Metadata: cloneMeta(foreign)},
+	); err != nil {
+		t.Fatal(err)
+	}
+	root.End()
+
+	stub := spanNamed(t, exporter.GetSpans(), "publish tenancy.events")
+	if stub.Parent.SpanID() != root.SpanContext().SpanID() {
+		t.Errorf("publish parent = %v, want the calling span %s", stub.Parent, root.SpanContext().SpanID())
+	}
+	if !linkedTo(stub, origin) {
+		t.Errorf("a carried creation context must still be linked: %v", stub.Links)
+	}
+}
+
 func TestSubscriberContinuesTraceAndSpansErrors(t *testing.T) {
 	exporter := setup(t)
 	mem := broker.NewMemoryBroker()
@@ -303,9 +480,10 @@ func (r rawID) String() string { return string(r) }
 
 // TestWeaveEndToEnd is the headline: one trace from a command span,
 // through a stored event's metadata, relay-style copy onto a message,
-// and a broker consume on the other side.
+// the publish itself, and a broker consume on the other side — with
+// every span named so a human reading the waterfall knows who did what.
 func TestWeaveEndToEnd(t *testing.T) {
-	setup(t)
+	exporter := setup(t)
 	mem := broker.NewMemoryBroker()
 	pub := o11y.Publisher(mem)
 	sub := o11y.Subscriber(mem)
@@ -343,7 +521,7 @@ func TestWeaveEndToEnd(t *testing.T) {
 	runCtx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go func() {
-		_ = sub.Subscribe(runCtx, "counter.events", "g", func(hctx context.Context, _ broker.Message) error {
+		_ = sub.Subscribe(runCtx, "counter.events", "reporting.counter_views", func(hctx context.Context, _ broker.Message) error {
 			mu.Lock()
 			defer mu.Unlock()
 			consumerTrace = trace.SpanContextFromContext(hctx).TraceID()
@@ -363,6 +541,28 @@ func TestWeaveEndToEnd(t *testing.T) {
 		t.Errorf("consumer trace %s != origin trace %s: the async weave is broken",
 			consumerTrace, root.SpanContext().TraceID())
 	}
+
+	// The relay published from a poll tick with no span of its own, and
+	// the span still belongs to the request's trace — no gap between the
+	// command and the consumer.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		spans := exporter.GetSpans()
+		if len(spans) >= 3 {
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	publish := spanNamed(t, exporter.GetSpans(), "publish counter.events")
+	if publish.SpanContext.TraceID() != root.SpanContext().TraceID() {
+		t.Errorf("publish span landed in trace %s, want the originating %s",
+			publish.SpanContext.TraceID(), root.SpanContext().TraceID())
+	}
+	command := spanNamed(t, exporter.GetSpans(), "command billing.capture_payment")
+	if publish.Parent.SpanID() != command.SpanContext.SpanID() {
+		t.Errorf("publish parent = %v, want the command span that created the event", publish.Parent)
+	}
+	spanNamed(t, exporter.GetSpans(), "consume reporting.counter_views test.counter_created")
 }
 
 func TestLogHandlerAddsTraceIDs(t *testing.T) {
@@ -454,12 +654,29 @@ func collect(t *testing.T, b *broker.MemoryBroker, topic string, n int) []broker
 	return nil
 }
 
+func cloneMeta(meta map[string]string) map[string]string {
+	out := make(map[string]string, len(meta))
+	for k, v := range meta {
+		out[k] = v
+	}
+	return out
+}
+
 func spanNames(spans tracetest.SpanStubs) []string {
 	names := make([]string, len(spans))
 	for i, s := range spans {
 		names[i] = s.Name
 	}
 	return names
+}
+
+func hasIntAttr(s tracetest.SpanStub, key string, value int64) bool {
+	for _, kv := range s.Attributes {
+		if string(kv.Key) == key && kv.Value.AsInt64() == value {
+			return true
+		}
+	}
+	return false
 }
 
 func hasAttr(s tracetest.SpanStub, key, value string) bool {

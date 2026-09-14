@@ -35,16 +35,14 @@ func LinkFrom(meta map[string]string) trace.Link {
 // spanContextFrom resolves the span context stored in meta, preferring a
 // live traceparent over the origin keys.
 func spanContextFrom(meta map[string]string) trace.SpanContext {
+	if sc := liveSpanContextFrom(meta); sc.IsValid() {
+		return sc
+	}
 	if len(meta) == 0 {
 		return trace.SpanContext{}
 	}
 	carrier := map[string]string{}
 	switch {
-	case meta["traceparent"] != "":
-		carrier["traceparent"] = meta["traceparent"]
-		if ts := meta["tracestate"]; ts != "" {
-			carrier["tracestate"] = ts
-		}
 	case meta[OriginTraceparentKey] != "":
 		carrier["traceparent"] = meta[OriginTraceparentKey]
 		if ts := meta[OriginTracestateKey]; ts != "" {
@@ -52,6 +50,21 @@ func spanContextFrom(meta map[string]string) trace.SpanContext {
 		}
 	default:
 		return trace.SpanContext{}
+	}
+	return trace.SpanContextFromContext(Extract(context.Background(), carrier))
+}
+
+// liveSpanContextFrom resolves ONLY the live trace context in meta,
+// never the origin stamp. Callers that may parent onto the result must
+// use this one: the origin is deliberately neither a parent nor a root
+// (ADR-0015), and silently promoting it would undo that boundary.
+func liveSpanContextFrom(meta map[string]string) trace.SpanContext {
+	if meta["traceparent"] == "" {
+		return trace.SpanContext{}
+	}
+	carrier := map[string]string{"traceparent": meta["traceparent"]}
+	if ts := meta["tracestate"]; ts != "" {
+		carrier["tracestate"] = ts
 	}
 	return trace.SpanContextFromContext(Extract(context.Background(), carrier))
 }
