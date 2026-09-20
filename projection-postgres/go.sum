@@ -1,10 +1,10 @@
 github.com/akaporn-katip/gohex/broker v0.1.0 h1:+Q9EznbS09VeqO87QOpk79kfa0yaaPQTJJwN/3VJxFQ=
 github.com/akaporn-katip/gohex/broker v0.1.0/go.mod h1:3x0RUTSiuv0Rvu6tWTDyHyZh+1oPj1D/WBGpgqlSLjo=
-github.com/akaporn-katip/gohex/eventstore v0.3.0 h1:s9a1O+hOl04j2hyRYGobowg8cQk0fvy/RgIyF4eeyxE=
+github.com/akaporn-katip/gohex/eventstore v0.3.0 h1:eP9fubpk40GTG1EV9nV6F8Puc1Wq05G09salXiKNKXs=
 github.com/akaporn-katip/gohex/eventstore v0.3.0/go.mod h1:s6Lg72KaA8siNrSqzMyhnKlYtd352l0xGMdPZG8lw08=
 github.com/akaporn-katip/gohex/kernel v0.1.0 h1:a+1Fl0lBphLXdSJ6uHTC8+668hJqnSvLVt4vV4Z5y50=
 github.com/akaporn-katip/gohex/kernel v0.1.0/go.mod h1:XrhNlorYqiV+WW0pZraeiDdshS2X5PwxRZv0zYZ9Yl4=
-github.com/akaporn-katip/gohex/projection v0.4.0 h1:PngncZ97OlyMUz5389DCOB7TXhJcadB11f/QDSpo78c=
+github.com/akaporn-katip/gohex/projection v0.4.0 h1:dg1+tEi39iYnqbIqvI9McMQPPxDcns0MzfiMpMrhye8=
 github.com/akaporn-katip/gohex/projection v0.4.0/go.mod h1:Ndsnjmv9YQdl/jowYUUgPGUZigxkHj1KlCiPJKUq/Jc=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=

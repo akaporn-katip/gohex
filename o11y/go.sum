@@ -2,11 +2,11 @@ github.com/akaporn-katip/gohex/broker v0.1.0 h1:+Q9EznbS09VeqO87QOpk79kfa0yaaPQT
 github.com/akaporn-katip/gohex/broker v0.1.0/go.mod h1:3x0RUTSiuv0Rvu6tWTDyHyZh+1oPj1D/WBGpgqlSLjo=
 github.com/akaporn-katip/gohex/cqrs v0.1.0 h1:dSjpXm6QCPK68Cxn104Qt1TwUBZ00EA+GCBfTAMs5is=
 github.com/akaporn-katip/gohex/cqrs v0.1.0/go.mod h1:2t+qjbbNbQQY6Z10B6stwljGHT8E/V1el+HHFD2wo0Q=
-github.com/akaporn-katip/gohex/eventstore v0.3.0 h1:s9a1O+hOl04j2hyRYGobowg8cQk0fvy/RgIyF4eeyxE=
+github.com/akaporn-katip/gohex/eventstore v0.3.0 h1:eP9fubpk40GTG1EV9nV6F8Puc1Wq05G09salXiKNKXs=
 github.com/akaporn-katip/gohex/eventstore v0.3.0/go.mod h1:s6Lg72KaA8siNrSqzMyhnKlYtd352l0xGMdPZG8lw08=
 github.com/akaporn-katip/gohex/kernel v0.1.0 h1:a+1Fl0lBphLXdSJ6uHTC8+668hJqnSvLVt4vV4Z5y50=
 github.com/akaporn-katip/gohex/kernel v0.1.0/go.mod h1:XrhNlorYqiV+WW0pZraeiDdshS2X5PwxRZv0zYZ9Yl4=
-github.com/akaporn-katip/gohex/projection v0.4.0 h1:PngncZ97OlyMUz5389DCOB7TXhJcadB11f/QDSpo78c=
+github.com/akaporn-katip/gohex/projection v0.4.0 h1:dg1+tEi39iYnqbIqvI9McMQPPxDcns0MzfiMpMrhye8=
 github.com/akaporn-katip/gohex/projection v0.4.0/go.mod h1:Ndsnjmv9YQdl/jowYUUgPGUZigxkHj1KlCiPJKUq/Jc=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=
 github.com/cenkalti/backoff/v4 v4.3.0/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyYozVcomhLiZE=
