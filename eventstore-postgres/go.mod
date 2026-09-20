@@ -3,7 +3,7 @@ module github.com/akaporn-katip/gohex/eventstore-postgres
 go 1.26
 
 require (
-	github.com/akaporn-katip/gohex/eventstore v0.2.0
+	github.com/akaporn-katip/gohex/eventstore v0.3.0
 	github.com/jackc/pgx/v5 v5.7.6
 )
 

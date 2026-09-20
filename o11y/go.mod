@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/akaporn-katip/gohex/broker v0.1.0
 	github.com/akaporn-katip/gohex/cqrs v0.1.0
-	github.com/akaporn-katip/gohex/eventstore v0.2.0
+	github.com/akaporn-katip/gohex/eventstore v0.3.0
 	github.com/akaporn-katip/gohex/kernel v0.1.0
 	go.opentelemetry.io/contrib/bridges/otelslog v0.10.0
 	go.opentelemetry.io/otel v1.35.0

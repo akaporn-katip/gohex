@@ -9,7 +9,7 @@ require (
 )
 
 require (
-	github.com/akaporn-katip/gohex/eventstore v0.2.0 // indirect
+	github.com/akaporn-katip/gohex/eventstore v0.3.0 // indirect
 	github.com/akaporn-katip/gohex/kernel v0.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
