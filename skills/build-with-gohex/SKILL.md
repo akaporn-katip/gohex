@@ -1,7 +1,7 @@
 ---
 name: build-with-gohex
 description: Build event-driven Go microservices with the gohex framework libraries (github.com/akaporn-katip/gohex). Use when the user mentions gohex, or the project already imports github.com/akaporn-katip/gohex/* — for scaffolding a new service, adding aggregates/events/commands, integrating services via contracts/sagas/projections, or wiring OpenTelemetry through the async flow. Do not use for generic event-sourcing or CQRS advice in projects that don't use gohex.
-version: 2.2.0
+version: 2.3.0
 ---
 
 # Build with gohex
@@ -33,7 +33,7 @@ source is the only truth. Before writing any code that calls a gohex lib:
    relative to the gohex-example checkout; all other paths are relative to
    the gohex repo root.
 
-The gohex checkout also gives you `docs/adr/0001`–`0015` (every architectural
+The gohex checkout also gives you `docs/adr/0001`–`0017` (every architectural
 decision, numbered; reference files cite them as ADR-NNNN) and `CONTEXT.md`
 (the framework's ubiquitous language — use its terms verbatim: Aggregate,
 Value Object, Domain Event, Integration Event, Translator, Relay, Envelope,
@@ -59,7 +59,7 @@ The modules (each is its own Go module at the gohex repo root):
 | `cqrs` (+`-postgres`) | Command/query buses, retry policy, wire-command consumer with dedup |
 | `projection` (+`-postgres`) | Read models fed by own events (catch-up from store) + foreign facts (durable inbox); read-your-writes wait on own views |
 | `saga` | Event-sourced orchestration: pure decision handlers, atomic decide-and-send |
-| `o11y` | OpenTelemetry: one trace from HTTP edge through store and broker to other services |
+| `o11y` | OpenTelemetry, all three signals: one trace from HTTP edge through store and broker to other services, logs fanned out to stdout *and* OTLP, backlog gauges for relay/projection/inbox |
 
 ## The guarantees you must not break
 
@@ -106,4 +106,5 @@ Load the one matching the task:
   talk: contracts, translators, wire commands with dedup, hybrid projections
   with the inbox, sagas and compensation.
 - **[references/o11y.md](references/o11y.md)** — weave OpenTelemetry through
-  the async flow and verify one trace spans the system.
+  the async flow, verify one trace spans the system, and wire the backlog
+  metrics that say how far behind the async machinery is.
