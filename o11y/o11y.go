@@ -52,8 +52,14 @@
 // [LinkFrom], [OriginMetadata] and, for the projection runners,
 // [ProjectionHook].
 //
-// This slice covers traces and slog; metrics are a separate concern and
-// no MeterProvider is installed here.
+// All three signals travel the same OTLP/HTTP pipe (ADR-0017). Logs
+// fan out: the JSON line still goes to stdout for "kubectl logs", and
+// the same record is bridged to the OTLP LoggerProvider with trace
+// correlation intact. Metrics cover what only this framework can know —
+// the backlogs behind its durable hand-offs, sampled from checkpoints;
+// see [WatchRelayLag], [WatchProjectionLag] and [WatchInboxDepth].
+// Latency and error rates are derived from the spans above at the
+// collector, so no instrument here duplicates them.
 package o11y
 
 import (
