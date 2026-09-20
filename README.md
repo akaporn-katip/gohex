@@ -3,8 +3,7 @@
 A framework for event-driven microservices in Go: hexagonal
 architecture, domain-driven design, event sourcing, CQRS, and sagas —
 as **importable framework libraries**. A runnable example system
-demonstrating them lives in
-[gohex-example](https://github.com/akaporn-katip/gohex-example).
+demonstrating them lives in [`gohex-example/`](gohex-example/).
 
 Every architectural decision is recorded in [`docs/adr/`](docs/adr/); the
 ubiquitous language lives in [`CONTEXT.md`](CONTEXT.md).
@@ -43,12 +42,15 @@ Key guarantees, all pinned by tests:
 
 ## The example system
 
-[gohex-example](https://github.com/akaporn-katip/gohex-example) is
-e-commerce order fulfillment across four services — `ordering`,
-`billing`, `inventory`, `shipping` — talking **only** through Kafka:
-commands in, facts out. Clone it and `docker compose up --build -d` to
-see the whole flow, including one OpenTelemetry trace across every
-Kafka hop.
+[`gohex-example/`](gohex-example/) is e-commerce order fulfillment
+across four services — `ordering`, `billing`, `inventory`, `shipping` —
+talking **only** through Kafka: commands in, facts out. From that
+directory, `docker compose up --build -d` brings up the whole flow,
+including one OpenTelemetry trace across every Kafka hop.
+
+The example is its own Go workspace (`gohex-example/go.work`) and pins
+**released** gohex module versions rather than the local source, so it
+always reflects what users of the published tags get.
 
 ## License
 
