@@ -83,4 +83,11 @@ type Store interface {
 	// global order (limit <= 0 means no limit). This is the tailing read
 	// used by the relay and projections.
 	ReadAll(ctx context.Context, afterSeq int64, limit int) ([]RecordedEvent, error)
+
+	// Head returns the GlobalSeq of the last event the store holds — the
+	// position a tailing reader reaches when it is fully caught up. An
+	// empty store returns 0, the same zero a fresh checkpoint carries, so
+	// head minus checkpoint is the backlog in events (see the backlog
+	// gauges in the o11y package, ADR-0017).
+	Head(ctx context.Context) (int64, error)
 }

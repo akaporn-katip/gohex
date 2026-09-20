@@ -142,6 +142,18 @@ func (s *Store) ReadAll(ctx context.Context, afterSeq int64, limit int) ([]event
 	return scanEvents(rows)
 }
 
+// Head reads the store-wide high-water mark. max(global_seq) is a
+// cheap backwards index scan on the primary key, so a metrics scrape
+// can afford it once per collection interval; coalesce turns the empty
+// table into 0, the port's answer for a store with nothing in it.
+func (s *Store) Head(ctx context.Context) (int64, error) {
+	var head int64
+	if err := s.pool.QueryRow(ctx, `SELECT coalesce(max(global_seq), 0) FROM events`).Scan(&head); err != nil {
+		return 0, fmt.Errorf("espostgres: head: %w", err)
+	}
+	return head, nil
+}
+
 func scanEvents(rows pgx.Rows) ([]eventstore.RecordedEvent, error) {
 	defer rows.Close()
 	var out []eventstore.RecordedEvent

@@ -106,7 +106,12 @@ func integrationKey(name string, version int) string {
 // event store — the checkpoint to pass to [WaitForCheckpoint] for
 // read-your-writes on this projection's views.
 func (p *Projection) StoreCheckpoint() string { return "projection." + p.name + ".store" }
-func (p *Projection) inboxCheckpoint() string { return "projection." + p.name + ".inbox" }
+
+// InboxCheckpoint names the cursor [InboxReader] keeps on the foreign-
+// fact inbox — the checkpoint to pair with the inbox's head when
+// watching how far the reader trails (see the backlog gauges in the
+// o11y package).
+func (p *Projection) InboxCheckpoint() string { return "projection." + p.name + ".inbox" }
 
 // Reset zeroes both checkpoints so the runners replay from the start.
 // Truncate the projection's read tables before restarting them.
@@ -114,7 +119,7 @@ func Reset(ctx context.Context, cps eventstore.CheckpointStore, p *Projection) e
 	if err := cps.Set(ctx, p.StoreCheckpoint(), 0); err != nil {
 		return fmt.Errorf("projection %s: reset: %w", p.name, err)
 	}
-	if err := cps.Set(ctx, p.inboxCheckpoint(), 0); err != nil {
+	if err := cps.Set(ctx, p.InboxCheckpoint(), 0); err != nil {
 		return fmt.Errorf("projection %s: reset: %w", p.name, err)
 	}
 	return nil

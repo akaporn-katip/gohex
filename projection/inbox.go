@@ -20,6 +20,12 @@ type Inbox interface {
 	// ReadAll returns up to limit stored messages with Seq > afterSeq in
 	// arrival order (limit <= 0 means no limit).
 	ReadAll(ctx context.Context, afterSeq int64, limit int) ([]InboxMessage, error)
+	// Head returns the Seq of the last message the inbox holds — the
+	// position an [InboxReader] reaches when it is fully caught up. An
+	// empty inbox returns 0, matching a fresh checkpoint, so head minus
+	// checkpoint is the inbox depth in messages (see the backlog gauges
+	// in the o11y package, ADR-0017).
+	Head(ctx context.Context) (int64, error)
 }
 
 // InboxMessage is a stored message plus its inbox position.
@@ -68,6 +74,15 @@ func (i *MemoryInbox) ReadAll(_ context.Context, afterSeq int64, limit int) ([]I
 	return out, nil
 }
 
+func (i *MemoryInbox) Head(_ context.Context) (int64, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if len(i.msgs) == 0 {
+		return 0, nil
+	}
+	return i.msgs[len(i.msgs)-1].Seq, nil
+}
+
 // InboxWriter subscribes to a foreign topic and durably appends every
 // message to the inbox — nothing else. Acknowledgement happens only
 // after the append, so the inbox misses nothing; the broker group's
@@ -109,7 +124,7 @@ func NewInboxReader(p *Projection, inbox Inbox, checkpoints eventstore.Checkpoin
 // occurs (returns it; the supervisor restarts from the checkpoint, so
 // the in-flight batch is re-applied — handlers must be idempotent).
 func (r *InboxReader) Run(ctx context.Context) error {
-	name := r.projection.inboxCheckpoint()
+	name := r.projection.InboxCheckpoint()
 	seq, err := r.checkpoints.Get(ctx, name)
 	if err != nil {
 		return fmt.Errorf("%s: %w", name, err)

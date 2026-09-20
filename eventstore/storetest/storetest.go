@@ -232,6 +232,88 @@ func Run(t *testing.T, newStore func(t *testing.T) eventstore.Store) {
 			t.Errorf("second append reported seq %d, ReadAll says %d", seq2, got)
 		}
 	})
+
+	t.Run("head of an empty store is zero", func(t *testing.T) {
+		s := newStore(t)
+		head, err := s.Head(ctx)
+		if err != nil {
+			t.Fatalf("Head: %v", err)
+		}
+		if head != 0 {
+			t.Errorf("Head(empty) = %d, want 0", head)
+		}
+	})
+
+	t.Run("head is the last appended global seq", func(t *testing.T) {
+		s := newStore(t)
+		seq, err := s.Append(ctx, stream, 0, []eventstore.EventData{ev("a"), ev("b")})
+		if err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+		head, err := s.Head(ctx)
+		if err != nil {
+			t.Fatalf("Head: %v", err)
+		}
+		if head != seq {
+			t.Errorf("Head = %d, want the appended seq %d", head, seq)
+		}
+
+		// A second stream moves the head too: it is store-wide.
+		seq, err = s.Append(ctx, other, 0, []eventstore.EventData{ev("c")})
+		if err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+		head, err = s.Head(ctx)
+		if err != nil {
+			t.Fatalf("Head: %v", err)
+		}
+		if head != seq {
+			t.Errorf("Head = %d, want the appended seq %d", head, seq)
+		}
+	})
+
+	t.Run("head marks the end of the tailing read", func(t *testing.T) {
+		s := newStore(t)
+		mustAppend(t, s, stream, 0, ev("a"), ev("b"))
+		mustAppend(t, s, other, 0, ev("c"))
+		head, err := s.Head(ctx)
+		if err != nil {
+			t.Fatalf("Head: %v", err)
+		}
+		recs, err := s.ReadAll(ctx, 0, 0)
+		if err != nil {
+			t.Fatalf("ReadAll: %v", err)
+		}
+		if got := recs[len(recs)-1].GlobalSeq; got != head {
+			t.Errorf("Head = %d, last ReadAll seq = %d", head, got)
+		}
+		tail, err := s.ReadAll(ctx, head, 0)
+		if err != nil {
+			t.Fatalf("ReadAll(after head): %v", err)
+		}
+		if len(tail) != 0 {
+			t.Errorf("ReadAll(after head) returned %d events, want 0", len(tail))
+		}
+	})
+
+	t.Run("a failed append leaves the head alone", func(t *testing.T) {
+		s := newStore(t)
+		mustAppend(t, s, stream, 0, ev("a"))
+		before, err := s.Head(ctx)
+		if err != nil {
+			t.Fatalf("Head: %v", err)
+		}
+		if _, err := s.Append(ctx, stream, 0, []eventstore.EventData{ev("b")}); !errors.Is(err, eventstore.ErrVersionConflict) {
+			t.Fatalf("stale append = %v, want ErrVersionConflict", err)
+		}
+		after, err := s.Head(ctx)
+		if err != nil {
+			t.Fatalf("Head: %v", err)
+		}
+		if after != before {
+			t.Errorf("Head moved on a conflicting append: %d then %d", before, after)
+		}
+	})
 }
 
 func mustAppend(t *testing.T, s eventstore.Store, stream eventstore.StreamID, expected int64, events ...eventstore.EventData) {

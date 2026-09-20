@@ -76,6 +76,17 @@ func (i *Inbox) ReadAll(ctx context.Context, afterSeq int64, limit int) ([]proje
 	return scanInbox(rows)
 }
 
+// Head reads the inbox's high-water mark. max(seq) is a backwards scan
+// of the primary key, cheap enough for a metrics scrape; coalesce turns
+// an empty inbox into 0, the port's answer for holding nothing.
+func (i *Inbox) Head(ctx context.Context) (int64, error) {
+	var head int64
+	if err := i.pool.QueryRow(ctx, `SELECT coalesce(max(seq), 0) FROM inbox`).Scan(&head); err != nil {
+		return 0, fmt.Errorf("projectionpg: head: %w", err)
+	}
+	return head, nil
+}
+
 func scanInbox(rows pgx.Rows) ([]projection.InboxMessage, error) {
 	defer rows.Close()
 	var out []projection.InboxMessage

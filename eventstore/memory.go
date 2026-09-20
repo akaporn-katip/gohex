@@ -84,6 +84,16 @@ func (s *MemoryStore) ReadAll(_ context.Context, afterSeq int64, limit int) ([]R
 	return out, nil
 }
 
+func (s *MemoryStore) Head(_ context.Context) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(s.all) == 0 {
+		return 0, nil
+	}
+	return s.all[len(s.all)-1].GlobalSeq, nil
+}
+
 func cloneRec(rec RecordedEvent) RecordedEvent {
 	rec.Payload = slices.Clone(rec.Payload)
 	rec.Metadata = cloneMeta(rec.Metadata)
