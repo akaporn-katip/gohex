@@ -58,13 +58,19 @@ package o11y
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	logglobal "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -75,21 +81,28 @@ import (
 
 // Config configures Init.
 type Config struct {
-	// ServiceName names this service in traces (resource service.name).
+	// ServiceName names this service in every signal — traces, logs and
+	// metrics all carry it as the resource's service.name.
 	ServiceName string
 	// OTLPEndpoint overrides the OTLP/HTTP endpoint, e.g.
 	// "localhost:4318" (plain HTTP). Empty uses the standard
 	// OTEL_EXPORTER_OTLP_* environment variables.
 	OTLPEndpoint string
-	// WithoutExporter skips exporter setup — propagation, the metadata
-	// hook, and logging still work. For tests and collector-less runs.
+	// WithoutExporter skips exporter setup for every signal —
+	// propagation, the metadata hook, stdout logging and the backlog
+	// instruments still work, they just reach no collector. For tests and
+	// collector-less runs.
 	WithoutExporter bool
 }
 
 // Init wires OpenTelemetry and slog for a service: W3C propagation, the
-// OTLP/HTTP trace exporter, the event-store metadata hook, and a JSON
-// slog default whose records carry trace_id/span_id. The returned
-// shutdown flushes pending spans.
+// event-store metadata hook, a JSON slog default whose records carry
+// trace_id/span_id, and OTLP/HTTP exporters for all three signals —
+// traces, logs and metrics. Logs keep going to stdout as well; the OTLP
+// side is an addition, not a replacement (ADR-0017).
+//
+// The returned shutdown flushes and stops every provider Init
+// installed, so nothing buffered is lost on a clean exit.
 func Init(ctx context.Context, cfg Config) (shutdown func(context.Context) error, err error) {
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{}, propagation.Baggage{}))
@@ -99,31 +112,113 @@ func Init(ctx context.Context, cfg Config) (shutdown func(context.Context) error
 		// traceable to its origin one hop further on.
 		return Inject(ctx, originFromContext(ctx))
 	})
-	slog.SetDefault(slog.New(NewLogHandler(slog.NewJSONHandler(os.Stdout, nil))))
+	// Stdout first and unconditionally: a service with no collector, or
+	// one whose exporter setup fails below, still logs the same lines.
+	slog.SetDefault(slog.New(NewSlogHandler(os.Stdout, cfg.ServiceName, nil)))
 
 	if cfg.WithoutExporter {
-		return func(context.Context) error { return nil }, nil
+		return noShutdown, nil
 	}
 
-	var opts []otlptracehttp.Option
-	if cfg.OTLPEndpoint != "" {
-		opts = append(opts, otlptracehttp.WithEndpoint(cfg.OTLPEndpoint), otlptracehttp.WithInsecure())
-	}
-	exporter, err := otlptracehttp.New(ctx, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("o11y: exporter: %w", err)
-	}
 	res, err := sdkresource.Merge(sdkresource.Default(), sdkresource.NewWithAttributes(
 		semconv.SchemaURL, semconv.ServiceName(cfg.ServiceName)))
 	if err != nil {
 		return nil, fmt.Errorf("o11y: resource: %w", err)
 	}
-	provider := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
+
+	// Each provider is registered as it is built, and every shutdown
+	// collected, so a failure half-way through still tears down what
+	// already exists instead of leaking a batcher goroutine.
+	var shutdowns []func(context.Context) error
+	fail := func(err error) (func(context.Context) error, error) {
+		_ = flushAll(ctx, shutdowns)
+		return nil, err
+	}
+
+	traceExporter, err := otlptracehttp.New(ctx, otlpTraceOptions(cfg)...)
+	if err != nil {
+		return fail(fmt.Errorf("o11y: trace exporter: %w", err))
+	}
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(traceExporter),
 		sdktrace.WithResource(res),
 	)
-	otel.SetTracerProvider(provider)
-	return provider.Shutdown, nil
+	otel.SetTracerProvider(tracerProvider)
+	shutdowns = append(shutdowns, tracerProvider.Shutdown)
+
+	logExporter, err := otlploghttp.New(ctx, otlpLogOptions(cfg)...)
+	if err != nil {
+		return fail(fmt.Errorf("o11y: log exporter: %w", err))
+	}
+	loggerProvider := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewBatchProcessor(logExporter)),
+		sdklog.WithResource(res),
+	)
+	logglobal.SetLoggerProvider(loggerProvider)
+	shutdowns = append(shutdowns, loggerProvider.Shutdown)
+	// Only now does the default logger gain its second sink: the stdout
+	// half is byte-for-byte what it was a moment ago.
+	slog.SetDefault(slog.New(NewSlogHandler(os.Stdout, cfg.ServiceName, loggerProvider)))
+
+	metricExporter, err := otlpmetrichttp.New(ctx, otlpMetricOptions(cfg)...)
+	if err != nil {
+		return fail(fmt.Errorf("o11y: metric exporter: %w", err))
+	}
+	meterProvider := sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter)),
+		sdkmetric.WithResource(res),
+	)
+	otel.SetMeterProvider(meterProvider)
+	shutdowns = append(shutdowns, meterProvider.Shutdown)
+
+	return func(ctx context.Context) error { return flushAll(ctx, shutdowns) }, nil
+}
+
+func noShutdown(context.Context) error { return nil }
+
+// flushAll shuts every provider down, even if an early one fails —
+// a stuck trace exporter must not cost the metrics their last export.
+func flushAll(ctx context.Context, shutdowns []func(context.Context) error) error {
+	var errs []error
+	for _, fn := range shutdowns {
+		if err := fn(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if err := errors.Join(errs...); err != nil {
+		return fmt.Errorf("o11y: shutdown: %w", err)
+	}
+	return nil
+}
+
+// An explicit Config.OTLPEndpoint means "plain HTTP, this host"; empty
+// leaves each exporter to read the standard OTEL_EXPORTER_OTLP_*
+// environment variables, signal-specific ones included.
+func otlpTraceOptions(cfg Config) []otlptracehttp.Option {
+	if cfg.OTLPEndpoint == "" {
+		return nil
+	}
+	return []otlptracehttp.Option{
+		otlptracehttp.WithEndpoint(cfg.OTLPEndpoint), otlptracehttp.WithInsecure(),
+	}
+}
+
+func otlpLogOptions(cfg Config) []otlploghttp.Option {
+	if cfg.OTLPEndpoint == "" {
+		return nil
+	}
+	return []otlploghttp.Option{
+		otlploghttp.WithEndpoint(cfg.OTLPEndpoint), otlploghttp.WithInsecure(),
+	}
+}
+
+func otlpMetricOptions(cfg Config) []otlpmetrichttp.Option {
+	if cfg.OTLPEndpoint == "" {
+		return nil
+	}
+	return []otlpmetrichttp.Option{
+		otlpmetrichttp.WithEndpoint(cfg.OTLPEndpoint), otlpmetrichttp.WithInsecure(),
+	}
 }
 
 const scope = "github.com/akaporn-katip/gohex/o11y"
