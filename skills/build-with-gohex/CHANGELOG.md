@@ -11,6 +11,22 @@ Bump rules:
 - **major** — restructured workflow files, or guidance changed because a gohex
   guarantee or API contract changed.
 
+## 2.3.0 — 2026-09-20
+
+Catches the skill up with two o11y releases. o11y v0.4.0 made span names say
+who is doing what (ADR-0016): `consume <group> <messageType>`,
+`project <projection> <messageType>`, `publish <topic>` — new "Span names"
+section in o11y.md, including the consequences for services (name consumer
+groups `<service>.<projection>`; groups and message types are span names now,
+so keep them compile-time constants). o11y v0.5.0 exports logs and metrics
+over OTLP alongside traces (ADR-0017): the wiring checklist's logging item is
+rewritten as the stdout + OTLP fan-out that `Init` now installs, and a new
+"Backlog metrics" section covers `gohex.relay.lag`, `gohex.projection.lag` and
+`gohex.inbox.depth`, the `Watch*` calls, the service-supplied head closure
+(pending a `Head` method on the eventstore/projection ports) and the standing
+ban on framework latency instruments. SKILL.md module table, ADR range (now
+0001–0017) and o11y workflow pointer updated.
+
 ## 2.2.0 — 2026-09-13
 
 gohex adds trace boundaries at durable hand-offs (ADR-0015): o11y v0.3.0
