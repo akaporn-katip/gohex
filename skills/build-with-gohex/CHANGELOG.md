@@ -11,6 +11,17 @@ Bump rules:
 - **major** — restructured workflow files, or guidance changed because a gohex
   guarantee or API contract changed.
 
+## 2.4.0 — 2026-09-20
+
+The head closure is gone. eventstore v0.3.0 and projection v0.4.0 put a `Head`
+method on the `Store` and `Inbox` ports (the follow-up ADR-0017 deferred), so
+o11y's backlog gauges wire straight to the port —
+`o11y.PositionFunc(store.Head)` — instead of a raw-SQL closure in every
+service's composition root; o11y v0.5.1 refreshes the docs to match.
+projection also exports `InboxCheckpoint()` alongside `StoreCheckpoint()`, so
+the inbox checkpoint name is asked for, never rebuilt by convention. The
+Backlog metrics section of o11y.md is updated accordingly.
+
 ## 2.3.0 — 2026-09-20
 
 Catches the skill up with two o11y releases. o11y v0.4.0 made span names say
