@@ -28,6 +28,8 @@ go get github.com/akaporn-katip/gohex/kernel@v0.1.0
 go get github.com/akaporn-katip/gohex/eventstore@v0.1.0
 ```
 
+Cutting a release — order, tagging, go.sum discipline: [RELEASING.md](RELEASING.md).
+
 Key guarantees, all pinned by tests:
 
 - **Atomic decide-and-send** — a saga's decision and its outgoing command
