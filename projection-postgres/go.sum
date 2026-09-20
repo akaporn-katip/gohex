@@ -4,8 +4,8 @@ github.com/akaporn-katip/gohex/eventstore v0.3.0 h1:s9a1O+hOl04j2hyRYGobowg8cQk0
 github.com/akaporn-katip/gohex/eventstore v0.3.0/go.mod h1:s6Lg72KaA8siNrSqzMyhnKlYtd352l0xGMdPZG8lw08=
 github.com/akaporn-katip/gohex/kernel v0.1.0 h1:a+1Fl0lBphLXdSJ6uHTC8+668hJqnSvLVt4vV4Z5y50=
 github.com/akaporn-katip/gohex/kernel v0.1.0/go.mod h1:XrhNlorYqiV+WW0pZraeiDdshS2X5PwxRZv0zYZ9Yl4=
-github.com/akaporn-katip/gohex/projection v0.2.0 h1:2yzRubSMhXddwHj0fEmC74idNE+uLtyyJrjOdRratNU=
-github.com/akaporn-katip/gohex/projection v0.2.0/go.mod h1:WPvUG6Gn2dbJE8lKqQ2P3sFMsF2C1+dGwfzMRm7ISlU=
+github.com/akaporn-katip/gohex/projection v0.4.0 h1:PngncZ97OlyMUz5389DCOB7TXhJcadB11f/QDSpo78c=
+github.com/akaporn-katip/gohex/projection v0.4.0/go.mod h1:Ndsnjmv9YQdl/jowYUUgPGUZigxkHj1KlCiPJKUq/Jc=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

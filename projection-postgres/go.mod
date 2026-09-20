@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/akaporn-katip/gohex/broker v0.1.0
-	github.com/akaporn-katip/gohex/projection v0.2.0
+	github.com/akaporn-katip/gohex/projection v0.4.0
 	github.com/jackc/pgx/v5 v5.7.6
 )
 
