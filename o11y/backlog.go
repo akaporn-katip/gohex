@@ -36,9 +36,9 @@ import (
 //	    o11y.PositionFunc(store.Head),
 //	    o11y.CheckpointPosition(checkpoints, "ordering.relay"))
 //
-// The head is supplied by the caller because the eventstore.Store and
-// projection.Inbox ports do not report one yet — see the note on
-// [Position].
+// Both sides are values the ports already answer: eventstore.Store and
+// projection.Inbox report their head, eventstore.CheckpointStore reports
+// the cursor — see the note on [Position].
 
 // Position reports a position on an append-only log: either the head
 // (the last position that exists) or a checkpoint (the last position a
@@ -46,14 +46,17 @@ import (
 // OpenTelemetry out of the relay, projection and event-store modules
 // (ADR-0009).
 //
-// Checkpoints have a port already: [CheckpointPosition] adapts any
-// eventstore.CheckpointStore. Heads do not — neither eventstore.Store
-// nor projection.Inbox exposes "the last sequence you hold", so the
-// head is a closure over whatever the service's store can answer (for
-// eventstore-postgres, "select coalesce(max(global_seq), 0) from
-// events"). Adding a Head method to those ports is the follow-up that
-// turns each of these calls into a one-liner; it is a port change, so
-// it belongs in eventstore/projection minor releases, not in o11y.
+// Both sides come from ports: [CheckpointPosition] adapts any
+// eventstore.CheckpointStore, and the head is the Head method that
+// eventstore.Store and projection.Inbox carry, passed through
+// [PositionFunc]:
+//
+//	o11y.PositionFunc(store.Head)
+//	o11y.PositionFunc(inbox.Head)
+//
+// A Position stays a plain func so a service with an exotic log — one
+// this framework's ports do not describe — can still supply a head of
+// its own.
 type Position func(context.Context) (int64, error)
 
 // PositionFunc adapts a method with the same shape as a Position, so a

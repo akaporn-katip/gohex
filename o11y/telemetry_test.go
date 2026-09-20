@@ -24,8 +24,10 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
+	"github.com/akaporn-katip/gohex/broker"
 	"github.com/akaporn-katip/gohex/eventstore"
 	"github.com/akaporn-katip/gohex/o11y"
+	"github.com/akaporn-katip/gohex/projection"
 )
 
 // --- logs: the fan-out -----------------------------------------------
@@ -212,6 +214,51 @@ func TestBacklogGaugesSampleHeadMinusCheckpoint(t *testing.T) {
 	}
 	if unit := got["gohex.inbox.depth"].unit; unit != "{message}" {
 		t.Errorf("inbox depth unit = %q, want {message}", unit)
+	}
+}
+
+// TestBacklogGaugesWireStraightToThePorts: the wiring the docs show —
+// no closure, no SQL in main.go — a store's and an inbox's own Head
+// method paired with their checkpoints.
+func TestBacklogGaugesWireStraightToThePorts(t *testing.T) {
+	reader := meterProvider(t)
+	ctx := context.Background()
+	store := eventstore.NewMemoryStore()
+	inbox := projection.NewMemoryInbox()
+	checkpoints := eventstore.NewMemoryCheckpointStore()
+	views := projection.New("billing_views")
+
+	events := []eventstore.EventData{
+		{EventName: "order_placed", SchemaVersion: 1, Payload: []byte(`{}`)},
+		{EventName: "order_paid", SchemaVersion: 1, Payload: []byte(`{}`)},
+	}
+	if _, err := store.Append(ctx, eventstore.StreamID{Category: "order", ID: "42"}, 0, events); err != nil {
+		t.Fatal(err)
+	}
+	if err := inbox.Append(ctx, broker.Message{ID: "payment/9#1", Type: "billing.payment_captured", Version: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkpoints.Set(ctx, views.StoreCheckpoint(), 1); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := o11y.WatchProjectionLag("billing_views", "store",
+		o11y.PositionFunc(store.Head),
+		o11y.CheckpointPosition(checkpoints, views.StoreCheckpoint())); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o11y.WatchInboxDepth("billing_views",
+		o11y.PositionFunc(inbox.Head),
+		o11y.CheckpointPosition(checkpoints, views.InboxCheckpoint())); err != nil {
+		t.Fatal(err)
+	}
+
+	got := collectGauges(t, reader)
+	if v := got["gohex.projection.lag"].value; v != 1 {
+		t.Errorf("projection lag = %d, want 1 (head 2 - checkpoint 1)", v)
+	}
+	if v := got["gohex.inbox.depth"].value; v != 1 {
+		t.Errorf("inbox depth = %d, want 1 (head 1 - no checkpoint)", v)
 	}
 }
 
