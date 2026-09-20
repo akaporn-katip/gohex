@@ -1,0 +1,9 @@
+go 1.26
+
+use (
+	./billing
+	./contracts
+	./inventory
+	./ordering
+	./shipping
+)
