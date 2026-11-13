@@ -73,6 +73,21 @@ A read model is a disposable, query-shaped table fed from two sources:
   possible past broker retention (`projection/projection_test.go`,
   `TestRebuildReplaysInboxWithoutBroker`).
 
+The writer takes a `projection.InboxWriterConfig`. Wire its `OnRejected`:
+an envelope that is structurally broken (no ID, no type, version 0, or a
+payload that is not JSON — `projection.ValidateMessage`) can never be
+stored, so it is **acked** and handed to the callback instead of being
+retried forever, the same reject-vs-retry split `cqrs.ConsumerConfig`
+makes (ADR-0012, ADR-0018). nil drops rejections silently, which in
+production means a foreign fact disappears unnoticed — record it or
+alert on it. An unknown type or an unhandled version is *not* a
+rejection: it is stored, because a projection extended later rebuilds
+from the inbox.
+
+Adapters of the `Inbox` port must pass `projection/inboxtest`'s contract
+suite, which pins that the in-memory inbox rejects exactly what a
+durable one rejects.
+
 Handlers must be **idempotent and commutative** — cross-source ordering is not
 guaranteed. Imitate ordering's status-rank trick: `SetStatus` only ever raises
 the rank, so late or repeated facts can't regress the row. Rebuild = reset

@@ -227,7 +227,8 @@ func TestForeignEventsFlowThroughInbox(t *testing.T) {
 
 	appendEvents(t, store, "42", 0, orderPlaced{OrderID: "42", Cents: 100})
 	run(t, "CatchUp", projection.NewCatchUp(p, store, newRegistry(), cps, fastCfg).Run)
-	run(t, "InboxWriter", projection.NewInboxWriter(memBroker, inbox, "billing.events", "ordering.order_summary").Run)
+	run(t, "InboxWriter", projection.NewInboxWriter(memBroker, inbox, "billing.events", "ordering.order_summary",
+		projection.InboxWriterConfig{}).Run)
 	run(t, "InboxReader", projection.NewInboxReader(p, inbox, cps, fastCfg).Run)
 
 	// Billing publishes; a redelivery of the same ID must collapse.

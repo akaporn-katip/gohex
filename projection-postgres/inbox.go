@@ -48,7 +48,16 @@ func NewInbox(pool *pgxpool.Pool) *Inbox { return &Inbox{pool: pool} }
 // JSON formatting (whitespace, key order) in the nested payload — the
 // same tolerance the eventstore adapter has. Consumers decode with
 // json.Unmarshal, which is unaffected.
+//
+// A structurally invalid envelope is refused up front with an error
+// wrapping projection.ErrInvalidMessage, before any database round
+// trip: jsonb cannot hold a payload that is not JSON, and the port
+// says so explicitly rather than letting it surface as an encoding
+// failure the caller would retry forever (ADR-0018).
 func (i *Inbox) Append(ctx context.Context, msg broker.Message) error {
+	if err := projection.ValidateMessage(msg); err != nil {
+		return fmt.Errorf("projectionpg: append: %w", err)
+	}
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("projectionpg: encoding %s: %w", msg.ID, err)

@@ -235,7 +235,7 @@ func TestBacklogGaugesWireStraightToThePorts(t *testing.T) {
 	if _, err := store.Append(ctx, eventstore.StreamID{Category: "order", ID: "42"}, 0, events); err != nil {
 		t.Fatal(err)
 	}
-	if err := inbox.Append(ctx, broker.Message{ID: "payment/9#1", Type: "billing.payment_captured", Version: 1}); err != nil {
+	if err := inbox.Append(ctx, broker.Message{ID: "payment/9#1", Type: "billing.payment_captured", Version: 1, Payload: []byte(`{}`)}); err != nil {
 		t.Fatal(err)
 	}
 	if err := checkpoints.Set(ctx, views.StoreCheckpoint(), 1); err != nil {

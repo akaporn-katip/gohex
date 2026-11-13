@@ -7,6 +7,7 @@ package kafkabroker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -62,6 +63,16 @@ func (b *Broker) Publish(ctx context.Context, topic string, msgs ...broker.Messa
 // retryBackoff paces redelivery of a message whose handler failed.
 const retryBackoff = 250 * time.Millisecond
 
+// Subscribe consumes topic as a member of group (see broker.Subscriber).
+//
+// A record whose gohex-* headers are present but unparseable fails the
+// subscription with an error wrapping [ErrMalformedEnvelope], naming
+// the record's partition and offset; that offset is NOT committed. A
+// malformed envelope is never repaired into a plausible-looking
+// Message — a bad gohex-version silently becoming version 0 would make
+// the record match no handler and vanish without a trace, which is
+// worse than stopping loudly. Supervisors surface the error; the
+// operator fixes the producer or moves the group past the offset.
 func (b *Broker) Subscribe(ctx context.Context, topic, group string, handler broker.Handler) error {
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(b.seeds...),
@@ -92,7 +103,11 @@ func (b *Broker) Subscribe(ctx context.Context, topic, group string, handler bro
 			if failed != nil {
 				return
 			}
-			msg := fromRecord(rec)
+			msg, err := fromRecord(rec)
+			if err != nil {
+				failed = err
+				return
+			}
 			// At-least-once: retry this message until it succeeds or we
 			// shut down; the offset is only committed after success.
 			for {
@@ -113,6 +128,9 @@ func (b *Broker) Subscribe(ctx context.Context, topic, group string, handler bro
 			return nil
 		}
 		if failed != nil {
+			if errors.Is(failed, ErrMalformedEnvelope) {
+				return fmt.Errorf("kafkabroker: subscribe %s/%s: %w", topic, group, failed)
+			}
 			return fmt.Errorf("kafkabroker: commit %s/%s: %w", topic, group, failed)
 		}
 	}
@@ -148,7 +166,25 @@ func toRecord(topic string, m broker.Message) (*kgo.Record, error) {
 	}, nil
 }
 
-func fromRecord(rec *kgo.Record) broker.Message {
+// ErrMalformedEnvelope marks a record whose gohex-* headers are present
+// but unparseable. No Message is produced for it: there is no honest
+// envelope to hand over, and inventing one (version 0, zero time, no
+// metadata) is the silent data-loss path this error exists to close.
+// Callers test with errors.Is. It is always returned wrapped by the
+// subscription, which supplies the package and topic/group prefix.
+var ErrMalformedEnvelope = errors.New("malformed envelope")
+
+// fromRecord rebuilds the envelope from record headers. An ABSENT
+// header leaves its field zero — that is a structurally incomplete
+// message, which the consumer edge rejects explicitly and reports
+// (projection.InboxWriterConfig.OnRejected, cqrs.ConsumerConfig.OnRejected)
+// — but a header that is present and unparseable is an error here,
+// never a quietly wrong value.
+func fromRecord(rec *kgo.Record) (broker.Message, error) {
+	malformed := func(header string, err error) (broker.Message, error) {
+		return broker.Message{}, fmt.Errorf("%w: %s of partition %d offset %d: %w",
+			ErrMalformedEnvelope, header, rec.Partition, rec.Offset, err)
+	}
 	msg := broker.Message{Key: string(rec.Key), Payload: rec.Value}
 	for _, h := range rec.Headers {
 		switch h.Key {
@@ -157,12 +193,22 @@ func fromRecord(rec *kgo.Record) broker.Message {
 		case headerType:
 			msg.Type = string(h.Value)
 		case headerVersion:
-			msg.Version, _ = strconv.Atoi(string(h.Value))
+			version, err := strconv.Atoi(string(h.Value))
+			if err != nil {
+				return malformed(headerVersion, err)
+			}
+			msg.Version = version
 		case headerOccurredAt:
-			msg.OccurredAt, _ = time.Parse(time.RFC3339Nano, string(h.Value))
+			occurredAt, err := time.Parse(time.RFC3339Nano, string(h.Value))
+			if err != nil {
+				return malformed(headerOccurredAt, err)
+			}
+			msg.OccurredAt = occurredAt
 		case headerMetadata:
-			_ = json.Unmarshal(h.Value, &msg.Metadata)
+			if err := json.Unmarshal(h.Value, &msg.Metadata); err != nil {
+				return malformed(headerMetadata, err)
+			}
 		}
 	}
-	return msg
+	return msg, nil
 }
