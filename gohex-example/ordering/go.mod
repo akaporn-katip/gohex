@@ -5,14 +5,14 @@ go 1.26
 require (
 	github.com/akaporn-katip/gohex-example/contracts v0.0.0
 	github.com/akaporn-katip/gohex/broker v0.1.0
-	github.com/akaporn-katip/gohex/broker-kafka v0.1.0
+	github.com/akaporn-katip/gohex/broker-kafka v0.2.0
 	github.com/akaporn-katip/gohex/cqrs v0.1.0
-	github.com/akaporn-katip/gohex/eventstore v0.2.0
-	github.com/akaporn-katip/gohex/eventstore-postgres v0.2.0
+	github.com/akaporn-katip/gohex/eventstore v0.3.0
+	github.com/akaporn-katip/gohex/eventstore-postgres v0.3.1
 	github.com/akaporn-katip/gohex/kernel v0.1.0
 	github.com/akaporn-katip/gohex/o11y v0.3.0
-	github.com/akaporn-katip/gohex/projection v0.3.0
-	github.com/akaporn-katip/gohex/projection-postgres v0.2.0
+	github.com/akaporn-katip/gohex/projection v0.5.0
+	github.com/akaporn-katip/gohex/projection-postgres v0.4.0
 	github.com/akaporn-katip/gohex/relay v0.2.0
 	github.com/akaporn-katip/gohex/saga v0.2.0
 	github.com/jackc/pgx/v5 v5.7.6

@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/akaporn-katip/gohex/broker"
 	kafkabroker "github.com/akaporn-katip/gohex/broker-kafka"
 	"github.com/akaporn-katip/gohex/cqrs"
 	"github.com/akaporn-katip/gohex/eventstore"
@@ -118,13 +119,37 @@ func run() error {
 	g.Go(func() error { return inboxReader.Run(ctx) })
 	g.Go(func() error { return notifier.Run(ctx) })
 	for _, topic := range app.ForeignTopics {
-		writer := projection.NewInboxWriter(subscriber, inbox, topic, "ordering.order_summary")
+		writer := projection.NewInboxWriter(subscriber, inbox, topic, "ordering.order_summary",
+			projection.InboxWriterConfig{OnRejected: rejectedForeignFact(topic)})
 		g.Go(func() error { return writer.Run(ctx) })
 	}
 	g.Go(func() error { return serveHTTP(ctx, envOr("PORT", "8080"), httpapi.New(bus, queries)) })
 
 	slog.Info("ordering running")
 	return g.Wait()
+}
+
+// rejectedForeignFact reports an envelope the inbox will never accept —
+// no ID, no type, version 0, or a payload that is not JSON (ADR-0018).
+// The writer acknowledges it and moves on, because redelivering it
+// forever would freeze every later fact on that partition, so THIS is
+// the only place the message is ever mentioned: a silent callback means
+// a foreign fact vanished with nobody watching.
+//
+// gohex supplies the mechanism and the service owns the policy. Logging
+// loudly is the floor; a production service writes the envelope to a
+// rejected-messages table and alerts on the count, so a misbehaving
+// producer is found before anyone notices a stale read model.
+func rejectedForeignFact(topic string) func(context.Context, broker.Message, error) {
+	return func(ctx context.Context, msg broker.Message, err error) {
+		slog.ErrorContext(ctx, "rejected foreign fact",
+			"topic", topic,
+			"group", "ordering.order_summary",
+			"message_id", msg.ID,
+			"type", msg.Type,
+			"version", msg.Version,
+			"error", err)
+	}
 }
 
 func connectPostgres(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
