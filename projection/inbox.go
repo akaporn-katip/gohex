@@ -2,6 +2,8 @@ package projection
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -15,7 +17,16 @@ import (
 // rebuilds work past broker retention.
 type Inbox interface {
 	// Append stores msg if its ID is new; appending a known ID is a
-	// no-op (redeliveries collapse).
+	// no-op — the stored message is kept as it was first seen and the
+	// inbox head does not move, so redeliveries collapse.
+	//
+	// Append accepts a structurally complete envelope only: non-empty
+	// ID and Type, a Version of 1 or more, and a Payload that is valid
+	// JSON ([ValidateMessage] is the rule). A message failing it is
+	// rejected with an error wrapping [ErrInvalidMessage] — every
+	// implementation rejects the same messages, so what the in-memory
+	// inbox accepts is what a durable adapter accepts. Any other error
+	// means the storage call failed and may be retried.
 	Append(ctx context.Context, msg broker.Message) error
 	// ReadAll returns up to limit stored messages with Seq > afterSeq in
 	// arrival order (limit <= 0 means no limit).
@@ -34,6 +45,32 @@ type InboxMessage struct {
 	Message broker.Message
 }
 
+// ErrInvalidMessage marks an envelope the [Inbox] port refuses: it is
+// structurally broken, so storing it can never succeed and redelivery
+// cannot fix it (ADR-0018). Adapters wrap it; callers test with
+// errors.Is.
+var ErrInvalidMessage = errors.New("projection: invalid inbox message")
+
+// ValidateMessage is the [Inbox] port's acceptance rule, exported so
+// every adapter enforces one definition rather than discovering it at
+// the storage layer. It checks the envelope's structure only: an
+// unknown Type or a version no projection handles today is perfectly
+// valid — a projection extended tomorrow rebuilds from the inbox and
+// needs those messages to be there (ADR-0006).
+func ValidateMessage(msg broker.Message) error {
+	switch {
+	case msg.ID == "":
+		return fmt.Errorf("%w: empty ID", ErrInvalidMessage)
+	case msg.Type == "":
+		return fmt.Errorf("%w (message %s): empty Type", ErrInvalidMessage, msg.ID)
+	case msg.Version < 1:
+		return fmt.Errorf("%w (message %s): version %d is not a contract version", ErrInvalidMessage, msg.ID, msg.Version)
+	case !json.Valid(msg.Payload):
+		return fmt.Errorf("%w (message %s): payload is not valid JSON", ErrInvalidMessage, msg.ID)
+	}
+	return nil
+}
+
 // MemoryInbox is an in-process Inbox for tests and single-process wiring.
 type MemoryInbox struct {
 	mu   sync.Mutex
@@ -48,6 +85,9 @@ func NewMemoryInbox() *MemoryInbox {
 }
 
 func (i *MemoryInbox) Append(_ context.Context, msg broker.Message) error {
+	if err := ValidateMessage(msg); err != nil {
+		return err
+	}
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	if i.byID[msg.ID] {
@@ -83,26 +123,60 @@ func (i *MemoryInbox) Head(_ context.Context) (int64, error) {
 	return i.msgs[len(i.msgs)-1].Seq, nil
 }
 
+// InboxWriterConfig tunes an [InboxWriter].
+type InboxWriterConfig struct {
+	// OnRejected is invoked when a message is definitively not storable:
+	// its envelope is structurally broken, so no inbox will ever accept
+	// it (see [ValidateMessage]). The message is acknowledged —
+	// redelivery cannot fix a definitive rejection (ADR-0012), and a
+	// writer that retried it forever would stall every later fact on the
+	// partition — so wire this to record a rejection fact or alert. nil
+	// drops rejections silently.
+	OnRejected func(ctx context.Context, msg broker.Message, err error)
+}
+
 // InboxWriter subscribes to a foreign topic and durably appends every
 // message to the inbox — nothing else. Acknowledgement happens only
 // after the append, so the inbox misses nothing; the broker group's
 // offset is its only cursor.
+//
+// A structurally invalid envelope is the one exception: it is
+// acknowledged without being stored and reported to
+// [InboxWriterConfig.OnRejected], the same reject-vs-retry split
+// cqrs.Consumer makes (ADR-0012). Every other append failure — storage
+// down, context cancelled — is returned to the broker for redelivery.
 type InboxWriter struct {
 	subscriber broker.Subscriber
 	inbox      Inbox
 	topic      string
 	group      string
+	cfg        InboxWriterConfig
 }
 
-func NewInboxWriter(subscriber broker.Subscriber, inbox Inbox, topic, group string) *InboxWriter {
-	return &InboxWriter{subscriber: subscriber, inbox: inbox, topic: topic, group: group}
+func NewInboxWriter(subscriber broker.Subscriber, inbox Inbox, topic, group string, cfg InboxWriterConfig) *InboxWriter {
+	return &InboxWriter{subscriber: subscriber, inbox: inbox, topic: topic, group: group, cfg: cfg}
 }
 
 // Run consumes until ctx is cancelled.
 func (w *InboxWriter) Run(ctx context.Context) error {
-	return w.subscriber.Subscribe(ctx, w.topic, w.group, func(ctx context.Context, msg broker.Message) error {
-		return w.inbox.Append(ctx, msg)
-	})
+	return w.subscriber.Subscribe(ctx, w.topic, w.group, w.handle)
+}
+
+// Handler returns the broker.Handler for callers that manage their own
+// subscription.
+func (w *InboxWriter) Handler() broker.Handler { return w.handle }
+
+func (w *InboxWriter) handle(ctx context.Context, msg broker.Message) error {
+	if err := w.inbox.Append(ctx, msg); err != nil {
+		if errors.Is(err, ErrInvalidMessage) {
+			if w.cfg.OnRejected != nil {
+				w.cfg.OnRejected(ctx, msg, err)
+			}
+			return nil // ack: no redelivery can make this message storable
+		}
+		return err // transient: broker redelivers
+	}
+	return nil
 }
 
 // InboxReader feeds a projection from the inbox, tailing it with a

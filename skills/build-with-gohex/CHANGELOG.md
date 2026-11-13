@@ -11,6 +11,19 @@ Bump rules:
 - **major** — restructured workflow files, or guidance changed because a gohex
   guarantee or API contract changed.
 
+## 3.0.0 — unreleased (lands with the next projection / projection-postgres / broker-kafka tags)
+
+The inbox edge gained a reject-vs-retry decision (ADR-0018), and the
+`projection.NewInboxWriter` signature changed with it: it now takes a
+`projection.InboxWriterConfig` whose `OnRejected` receives structurally
+invalid envelopes — which are acked, not retried forever as they were
+before. `projection.Inbox.Append` states its acceptance rule
+(`projection.ValidateMessage`), `projection/inboxtest` pins it for every
+adapter, and `broker-kafka` no longer turns an unparseable `gohex-*`
+header into a plausible-looking message (`ErrMalformedEnvelope`).
+`references/integration.md` documents the callback and that an unhandled
+type is still stored.
+
 ## 2.4.0 — 2026-09-20
 
 The head closure is gone. eventstore v0.3.0 and projection v0.4.0 put a `Head`

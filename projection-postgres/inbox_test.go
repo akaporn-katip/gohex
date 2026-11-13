@@ -11,8 +11,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/akaporn-katip/gohex/broker"
+	"github.com/akaporn-katip/gohex/projection"
 	projectionpg "github.com/akaporn-katip/gohex/projection-postgres"
+	"github.com/akaporn-katip/gohex/projection/inboxtest"
 )
+
+// The adapter answers to the same contract suite as MemoryInbox — the
+// in-memory inbox services test against may not be more permissive
+// than the one they run (ADR-0018).
+func TestInboxContract(t *testing.T) {
+	inboxtest.Run(t, func(t *testing.T) projection.Inbox {
+		return newCleanInbox(t)
+	})
+}
 
 // newCleanInbox returns an empty inbox on a real Postgres, or skips.
 func newCleanInbox(t *testing.T) *projectionpg.Inbox {
@@ -51,7 +62,7 @@ func TestInbox(t *testing.T) {
 	if err := inbox.Append(ctx, msg); err != nil {
 		t.Fatal("duplicate append must be a no-op, got:", err)
 	}
-	if err := inbox.Append(ctx, broker.Message{ID: "payment/9#2", Type: "x", Payload: json.RawMessage(`{}`)}); err != nil {
+	if err := inbox.Append(ctx, broker.Message{ID: "payment/9#2", Type: "x", Version: 1, Payload: json.RawMessage(`{}`)}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -98,11 +109,11 @@ func TestInboxHead(t *testing.T) {
 		t.Errorf("Head(empty) = %d, want 0", head)
 	}
 
-	msg := broker.Message{ID: "payment/9#1", Type: "x", Payload: json.RawMessage(`{}`)}
+	msg := broker.Message{ID: "payment/9#1", Type: "x", Version: 1, Payload: json.RawMessage(`{}`)}
 	if err := inbox.Append(ctx, msg); err != nil {
 		t.Fatal(err)
 	}
-	if err := inbox.Append(ctx, broker.Message{ID: "payment/9#2", Type: "x", Payload: json.RawMessage(`{}`)}); err != nil {
+	if err := inbox.Append(ctx, broker.Message{ID: "payment/9#2", Type: "x", Version: 1, Payload: json.RawMessage(`{}`)}); err != nil {
 		t.Fatal(err)
 	}
 
