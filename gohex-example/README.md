@@ -64,13 +64,23 @@ next to this repo and create an untracked workspace overlay:
 ```sh
 cp go.work go.work.dev
 go work edit $(for m in kernel broker broker-kafka eventstore eventstore-postgres \
-  cqrs cqrs-postgres relay projection projection-postgres saga o11y; do
+  cqrs cqrs-postgres relay projection projection-postgres saga supervise o11y; do
   printf ' -use ../gohex/%s' $m; done) go.work.dev
 GOWORK=$(pwd)/go.work.dev go build ./ordering/...
 ```
 
 `go.work.dev` is gitignored; the committed `go.work` keeps resolving
 gohex from the released tags.
+
+**Right now the overlay is not optional.** The composition roots wire
+`supervise` and `o11y.RunnerRestartHook` (ADR-0019), and neither
+`supervise/v0.1.0` nor `o11y/v0.6.0` is tagged yet — gohex's release rule
+is public before pinned, so the `go.mod` files cannot name a version the
+proxy has never seen. Until those tags are pushed, build and test the
+services with `GOWORK=$(pwd)/go.work.dev`; afterwards, one
+`go get github.com/akaporn-katip/gohex/supervise@v0.1.0 github.com/akaporn-katip/gohex/o11y@v0.6.0`
+per service (plus `go mod tidy`, which also drops the now-unused
+`golang.org/x/sync`) retires it.
 
 ## License
 

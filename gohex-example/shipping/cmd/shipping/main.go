@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/akaporn-katip/gohex/broker"
 	kafkabroker "github.com/akaporn-katip/gohex/broker-kafka"
@@ -26,6 +25,7 @@ import (
 	espostgres "github.com/akaporn-katip/gohex/eventstore-postgres"
 	"github.com/akaporn-katip/gohex/o11y"
 	"github.com/akaporn-katip/gohex/relay"
+	"github.com/akaporn-katip/gohex/supervise"
 	"github.com/akaporn-katip/gohex-example/contracts"
 	"github.com/akaporn-katip/gohex-example/shipping/internal/app"
 )
@@ -89,13 +89,44 @@ func run() error {
 	})
 	app.RegisterTranslators(rly)
 
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return consumer.Run(ctx, subscriber, contracts.TopicShippingCommands, "shipping") })
-	g.Go(func() error { return rly.Run(ctx) })
-	g.Go(func() error { return serveHealth(ctx, envOr("PORT", "8083")) })
+	// Supervisor: the consumer and the relay each get their own restart
+	// loop (ADR-0019). Both keep a durable checkpoint and resume from it,
+	// so one failure is a restart of that runner — not an errgroup, which
+	// would cancel the siblings and the health endpoint with them, turning
+	// one unprocessable command into CrashLoopBackOff.
+	sup := supervise.New(supervise.Config{
+		Restarted: o11y.RunnerRestartHook(),
+		Report:    reportRunnerFailure,
+	})
+	sup.Go(ctx, "shipping.commands", func(ctx context.Context) error {
+		return consumer.Run(ctx, subscriber, contracts.TopicShippingCommands, "shipping")
+	})
+	sup.Go(ctx, "shipping.relay", rly.Run)
 
 	slog.Info("shipping running")
-	return g.Wait()
+
+	// The health endpoint is the one runner whose failure IS the
+	// process's: a service Kubernetes cannot probe is a service it cannot
+	// route to. What is fatal stays the composition root's judgement.
+	err = serveHealth(ctx, envOr("PORT", "8083"))
+	stop()     // whatever ended the server, the runners wind down with it
+	sup.Wait() // Wait only waits; the context above is what cancels
+	return err
+}
+
+// reportRunnerFailure is the policy half of the supervisor: gohex counts
+// every restart (gohex.runner.restarts) and decides which failures are
+// news — the first one, and the first one that reads differently — and
+// the service decides what a news-worthy failure costs. Logging at Error
+// with the retry delay is the floor; a production service alerts on the
+// restart counter, because a log nobody reads is how a wedged runner
+// stays invisible. A recovered panic arrives here too, with its stack.
+func reportRunnerFailure(ctx context.Context, f supervise.Failure) {
+	fields := []any{"runner", f.Runner, "retry_in", f.RetryIn.String(), "error", f.Err}
+	if f.Stack != nil {
+		fields = append(fields, "stack", string(f.Stack))
+	}
+	slog.ErrorContext(ctx, "background runner failed and will be restarted", fields...)
 }
 
 func connectPostgres(ctx context.Context, dsn string) (*pgxpool.Pool, error) {

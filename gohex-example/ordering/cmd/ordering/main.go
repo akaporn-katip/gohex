@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/akaporn-katip/gohex/broker"
 	kafkabroker "github.com/akaporn-katip/gohex/broker-kafka"
@@ -28,6 +27,7 @@ import (
 	projectionpg "github.com/akaporn-katip/gohex/projection-postgres"
 	"github.com/akaporn-katip/gohex/relay"
 	"github.com/akaporn-katip/gohex/saga"
+	"github.com/akaporn-katip/gohex/supervise"
 	"github.com/akaporn-katip/gohex-example/contracts"
 	"github.com/akaporn-katip/gohex-example/ordering/internal/adapters/httpapi"
 	"github.com/akaporn-katip/gohex-example/ordering/internal/adapters/postgres"
@@ -110,23 +110,52 @@ func run() error {
 	// rather than continuing its trace (ADR-0015).
 	notifier := app.NewNotifier(notifications, bus, app.NotifierConfig{})
 
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return rly.Run(ctx) })
-	g.Go(func() error {
+	// Supervisor: every background runner gets its own restart loop
+	// (ADR-0019). These runners all keep a durable checkpoint and promise
+	// to resume from it, so a failure is a restart, not an outage — and
+	// NOT an errgroup, which cancels every sibling (the HTTP server
+	// included) over one message a projection cannot apply.
+	sup := supervise.New(supervise.Config{
+		Restarted: o11y.RunnerRestartHook(),
+		Report:    reportRunnerFailure,
+	})
+	sup.Go(ctx, "ordering.relay", rly.Run)
+	sup.Go(ctx, "ordering.order_fulfillment", func(ctx context.Context) error {
 		return fulfillment.Run(ctx, subscriber, "ordering.order_fulfillment", app.SagaTopics...)
 	})
-	g.Go(func() error { return catchUp.Run(ctx) })
-	g.Go(func() error { return inboxReader.Run(ctx) })
-	g.Go(func() error { return notifier.Run(ctx) })
+	sup.Go(ctx, "ordering.order_summary.catchup", catchUp.Run)
+	sup.Go(ctx, "ordering.order_summary.inbox", inboxReader.Run)
+	sup.Go(ctx, "ordering.notifier", notifier.Run)
 	for _, topic := range app.ForeignTopics {
 		writer := projection.NewInboxWriter(subscriber, inbox, topic, "ordering.order_summary",
 			projection.InboxWriterConfig{OnRejected: rejectedForeignFact(topic)})
-		g.Go(func() error { return writer.Run(ctx) })
+		sup.Go(ctx, "ordering.order_summary.inbox_writer."+topic, writer.Run)
 	}
-	g.Go(func() error { return serveHTTP(ctx, envOr("PORT", "8080"), httpapi.New(bus, queries)) })
 
 	slog.Info("ordering running")
-	return g.Wait()
+
+	// The HTTP server is the one runner whose failure IS the process's: a
+	// service that cannot serve its API has nothing left to supervise.
+	// Deciding that is the composition root's job and nobody else's.
+	err = serveHTTP(ctx, envOr("PORT", "8080"), httpapi.New(bus, queries))
+	stop()     // whatever ended the server, the runners wind down with it
+	sup.Wait() // Wait only waits; the context above is what cancels
+	return err
+}
+
+// reportRunnerFailure is the policy half of the supervisor: gohex counts
+// every restart (gohex.runner.restarts) and decides which failures are
+// news — the first one, and the first one that reads differently — and
+// the service decides what a news-worthy failure costs. Logging at Error
+// with the retry delay is the floor; a production service alerts on the
+// restart counter, because a log nobody reads is how a wedged projection
+// stays invisible. A recovered panic arrives here too, with its stack.
+func reportRunnerFailure(ctx context.Context, f supervise.Failure) {
+	fields := []any{"runner", f.Runner, "retry_in", f.RetryIn.String(), "error", f.Err}
+	if f.Stack != nil {
+		fields = append(fields, "stack", string(f.Stack))
+	}
+	slog.ErrorContext(ctx, "background runner failed and will be restarted", fields...)
 }
 
 // rejectedForeignFact reports an envelope the inbox will never accept —
