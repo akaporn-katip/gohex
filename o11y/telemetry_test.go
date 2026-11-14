@@ -349,6 +349,51 @@ func TestWatchBacklogWithoutMeterProviderIsSilent(t *testing.T) {
 	}
 }
 
+// --- metrics: the restart counter ------------------------------------
+
+// TestRunnerRestartHookCountsPerRunner: the signal that separates "slow"
+// from "dying" — one series per supervised runner, carrying the name and
+// nothing else.
+func TestRunnerRestartHookCountsPerRunner(t *testing.T) {
+	reader := meterProvider(t)
+	restarted := o11y.RunnerRestartHook()
+	ctx := context.Background()
+
+	restarted(ctx, "ordering.relay")
+	restarted(ctx, "ordering.order_summary.inbox")
+	restarted(ctx, "ordering.order_summary.inbox")
+
+	sums := collectSums(t, reader)
+	points, ok := sums["gohex.runner.restarts"]
+	if !ok {
+		t.Fatalf("gohex.runner.restarts was never collected")
+	}
+	got := map[string]int64{}
+	for _, p := range points {
+		name, ok := p.attrs.Value("gohex.runner.name")
+		if !ok {
+			t.Fatalf("a restart point with no gohex.runner.name: %v", p.attrs.Encoded(attribute.DefaultEncoder()))
+		}
+		if p.attrs.Len() != 1 {
+			t.Errorf("the point carries the runner's name and nothing else, got %v",
+				p.attrs.Encoded(attribute.DefaultEncoder()))
+		}
+		got[name.AsString()] = p.value
+	}
+	if got["ordering.relay"] != 1 || got["ordering.order_summary.inbox"] != 2 {
+		t.Errorf("restarts = %v, want relay 1 and inbox 2", got)
+	}
+}
+
+// TestRunnerRestartHookWithoutMeterProviderIsSilent: the same "silent but
+// functional" contract the gauges keep — a composition root wires the
+// hook unconditionally, including on a collector-less laptop run.
+func TestRunnerRestartHookWithoutMeterProviderIsSilent(t *testing.T) {
+	otel.SetMeterProvider(metricnoop.NewMeterProvider())
+	t.Cleanup(func() { otel.SetMeterProvider(metricnoop.NewMeterProvider()) })
+	o11y.RunnerRestartHook()(context.Background(), "ordering.relay")
+}
+
 // --- Init: all three signals, one endpoint ---------------------------
 
 // TestInitExportsAllThreeSignals runs Init against a stand-in collector
@@ -454,6 +499,32 @@ func collectGauges(t *testing.T, reader *sdkmetric.ManualReader) map[string]gaug
 			}
 			for _, dp := range gauge.DataPoints {
 				out[m.Name] = gaugePoint{value: dp.Value, unit: m.Unit, attrs: dp.Attributes}
+			}
+		}
+	}
+	return out
+}
+
+type sumPoint struct {
+	value int64
+	attrs attribute.Set
+}
+
+func collectSums(t *testing.T, reader *sdkmetric.ManualReader) map[string][]sumPoint {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	out := map[string][]sumPoint{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				continue
+			}
+			for _, dp := range sum.DataPoints {
+				out[m.Name] = append(out[m.Name], sumPoint{value: dp.Value, attrs: dp.Attributes})
 			}
 		}
 	}

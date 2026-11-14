@@ -19,6 +19,7 @@ ubiquitous language lives in [`CONTEXT.md`](CONTEXT.md).
 | `cqrs` (+`-postgres`) | Command/query buses with the reject-vs-retry split; wire-side command consumer with dedup |
 | `projection` (+`-postgres`) | Hybrid read models: own events from the store, foreign facts via a durable inbox |
 | `saga` | Event-sourced orchestration: workflows that decide, send, and compensate — atomically |
+| `supervise` | The restart loop every `Run(ctx) error` runner assumes: bounded backoff from the checkpoint, one runner's failure never cancels its siblings |
 | `o11y` | OpenTelemetry woven through the async flow: one trace from HTTP edge to the last service, linked traces across polling workers |
 
 Each module is independently versioned and importable:

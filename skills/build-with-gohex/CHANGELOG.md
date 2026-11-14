@@ -11,6 +11,24 @@ Bump rules:
 - **major** — restructured workflow files, or guidance changed because a gohex
   guarantee or API contract changed.
 
+## 4.0.0 — unreleased (lands with the supervise v0.1.0 and o11y v0.6.0 tags)
+
+gohex ships the supervisor its runners always assumed (ADR-0019), so the
+composition-root guidance changes shape: the new `supervise` module gets
+every background runner (relay, saga runner, projection catch-up, inbox
+reader, inbox writers, consumers, worklist workers) under a name, with
+`o11y.RunnerRestartHook()` as its restart counter and a `Report`
+callback for the log, while the HTTP/health server stays on the main
+goroutine as the one failure that is fatal. Step 10 of the wiring order
+in `references/scaffold.md` was "run everything under one errgroup" —
+the wiring whose first error cancelled the API over one unprocessable
+message — and is now the supervised shape, with the errgroup named as
+the anti-pattern it is. A new guarantee in SKILL.md says the same in one
+line, the module table gains `supervise`, and `references/o11y.md`
+documents `gohex.runner.restarts` beside the backlog gauges (name-only
+attributes; alert on the counter, since a repeated identical failure is
+reported once). ADR range is now 0001–0019.
+
 ## 3.0.0 — unreleased (lands with the next projection / projection-postgres / broker-kafka tags)
 
 The inbox edge gained a reject-vs-retry decision (ADR-0018), and the

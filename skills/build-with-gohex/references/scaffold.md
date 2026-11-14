@@ -57,9 +57,23 @@ them, don't guess:
 8. **Relay** — one per service, with a unique name and the service's events
    topic; register translators (and saga command routing if hosting a saga).
 9. **Saga runner / projections** — if applicable; see `references/integration.md`.
-10. **Run everything under one errgroup** — relay, saga runner, projection
-    catch-up + inbox reader + one inbox writer per foreign topic, consumer,
-    HTTP server. All take ctx; the group exits together on first error.
+10. **Supervise the background runners; block on the server** (ADR-0019) —
+    relay, saga runner, projection catch-up + inbox reader + one inbox writer
+    per foreign topic, consumer, worklist worker. Each goes to
+    `supervise.Supervisor` under a name (`"<service>.<what>"`, the name that
+    shows on `gohex.runner.restarts`), wired with `o11y.RunnerRestartHook()`
+    as the restart counter and a `Report` callback that logs the failure, its
+    retry delay and, for a recovered panic, its stack. Then serve HTTP on the
+    main goroutine, cancel the context when it returns, and `sup.Wait()`.
+
+    **Never put a runner in `errgroup.WithContext` beside the HTTP server.**
+    The group cancels every member on the first error, so one message a
+    projection cannot apply takes the API down and the orchestrator restarts
+    the process into the same message — the runners keep durable checkpoints
+    precisely so a failure can be a restart instead of an outage. The
+    composition root is the only place that decides what is fatal: the HTTP /
+    health server is, a background runner is not. Copy
+    `gohex-example/ordering/cmd/ordering/main.go`.
 
 ## Migrations
 

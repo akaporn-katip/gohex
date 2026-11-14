@@ -1,7 +1,7 @@
 ---
 name: build-with-gohex
 description: Build event-driven Go microservices with the gohex framework libraries (github.com/akaporn-katip/gohex). Use when the user mentions gohex, or the project already imports github.com/akaporn-katip/gohex/* — for scaffolding a new service, adding aggregates/events/commands, integrating services via contracts/sagas/projections, or wiring OpenTelemetry through the async flow. Do not use for generic event-sourcing or CQRS advice in projects that don't use gohex.
-version: 3.0.0
+version: 4.0.0
 ---
 
 # Build with gohex
@@ -33,7 +33,7 @@ source is the only truth. Before writing any code that calls a gohex lib:
    relative to the gohex-example checkout; all other paths are relative to
    the gohex repo root.
 
-The gohex checkout also gives you `docs/adr/0001`–`0017` (every architectural
+The gohex checkout also gives you `docs/adr/0001`–`0019` (every architectural
 decision, numbered; reference files cite them as ADR-NNNN) and `CONTEXT.md`
 (the framework's ubiquitous language — use its terms verbatim: Aggregate,
 Value Object, Domain Event, Integration Event, Translator, Relay, Envelope,
@@ -59,7 +59,8 @@ The modules (each is its own Go module at the gohex repo root):
 | `cqrs` (+`-postgres`) | Command/query buses, retry policy, wire-command consumer with dedup |
 | `projection` (+`-postgres`) | Read models fed by own events (catch-up from store) + foreign facts (durable inbox); read-your-writes wait on own views |
 | `saga` | Event-sourced orchestration: pure decision handlers, atomic decide-and-send |
-| `o11y` | OpenTelemetry, all three signals: one trace from HTTP edge through store and broker to other services, logs fanned out to stdout *and* OTLP, backlog gauges for relay/projection/inbox |
+| `supervise` | The restart loop every `Run(ctx) error` runner assumes: bounded backoff from the checkpoint, one runner's failure never cancels its siblings (stdlib only) |
+| `o11y` | OpenTelemetry, all three signals: one trace from HTTP edge through store and broker to other services, logs fanned out to stdout *and* OTLP, backlog gauges for relay/projection/inbox, restart counter for supervised runners |
 
 ## The guarantees you must not break
 
@@ -79,6 +80,11 @@ reference files cite them. When your code fights one of these, you are holding i
   rejection — never retried, acked on the wire, surfaced as 4xx or a rejection
   event. Everything else is infrastructure — retried, never given business
   meaning (ADR-0012).
+- **A background runner's failure is a restart, not an outage.** Every
+  `Run(ctx) error` runner checkpoints durably and hands its error to a
+  supervisor (ADR-0019). Supervise them; never group them with the HTTP server
+  in an `errgroup`, which cancels the siblings and turns one bad message into
+  CrashLoopBackOff. What is fatal is the composition root's decision.
 - **Value objects over primitives.** Aggregates and domain events hold
   self-validating value objects constructed via parsing constructors, never
   bare primitives (ADR-0011). Stored payload shapes are event schema; changing

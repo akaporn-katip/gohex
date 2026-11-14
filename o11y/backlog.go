@@ -26,6 +26,13 @@ import (
 //	gohex.projection.lag   source head   - projection checkpoint
 //	gohex.inbox.depth      inbox head    - inbox reader checkpoint
 //
+// One instrument here is not a backlog but belongs with them, because
+// it answers the question the gauges cannot: a backlog that is not
+// moving may be a slow worker or a worker that keeps dying, and
+// gohex.runner.restarts ([RunnerRestartHook]) is which. It is a
+// counter, not a gauge — a restart is an event, and a service that was
+// restarting all night must still say so in the morning.
+//
 // They are asynchronous gauges: the callback runs only when the reader
 // collects, so a scrape costs one cheap query per watched backlog and
 // an idle service costs nothing between collections.
@@ -169,6 +176,51 @@ func watchBacklog(b backlog) (Unwatch, error) {
 		return nil, fmt.Errorf("o11y: %s: %w", b.instrument, err)
 	}
 	return reg.Unregister, nil
+}
+
+// RunnerRestartHook returns the restart counter for a supervised
+// background runner: gohex.runner.restarts{gohex.runner.name=name},
+// incremented once per restart. It is the health signal behind a
+// supervisor — a flat lag gauge means nothing on its own, and a rising
+// restart count beside it says the runner never gets far enough to
+// move it.
+//
+// It is passed to the supervisor the way [ProjectionHook] is passed to
+// projection.Config, and for the same reason: the framework modules
+// hold the mechanism and name none of the telemetry, so OpenTelemetry
+// stays on this side of the wall (ADR-0009, ADR-0019).
+//
+//	sup := supervise.New(supervise.Config{
+//	    Restarted: o11y.RunnerRestartHook(),
+//	    Report:    reportRunnerFailure,
+//	})
+//
+// The returned func is a plain func rather than a supervise type, so
+// o11y does not depend on the supervise module: the field it is
+// assigned to has exactly this shape.
+//
+// The point carries the runner's NAME and nothing else. A runner's
+// error can carry whatever a failing handler put in it, which on a real
+// deployment means customer data, and a metric is aggregated and kept
+// far longer than a log — the error belongs in the supervisor's report
+// callback, which is a log. With no MeterProvider installed the global
+// meter is a no-op and this costs nothing, the same "silent but
+// functional" contract the gauges keep.
+func RunnerRestartHook() func(ctx context.Context, runner string) {
+	counter, err := otel.Meter(scope).Int64Counter("gohex.runner.restarts",
+		metric.WithUnit("{restart}"),
+		metric.WithDescription("Times a supervised background runner failed and was started again."),
+	)
+	if err != nil {
+		// The only way a counter with a constant, valid name fails to
+		// build is a broken meter; counting nothing is better than a
+		// panic in a composition root, and the supervisor's report
+		// callback still carries every failure.
+		return func(context.Context, string) {}
+	}
+	return func(ctx context.Context, runner string) {
+		counter.Add(ctx, 1, metric.WithAttributes(attribute.String("gohex.runner.name", runner)))
+	}
 }
 
 // lag floors the subtraction at zero. A checkpoint ahead of the head is

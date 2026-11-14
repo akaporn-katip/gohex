@@ -80,6 +80,14 @@ A command a saga issues to semantically undo an earlier step after a downstream 
 A table of pending work a service writes for itself and drains with a polling worker ("work the list"): claim a batch on a tick, act, retire the row. Business-paced and retried per row, which is why it is a trace boundary (ADR-0015).
 _Avoid_: Job queue, task table, outbox (the relay owns the outbox role)
 
+**Runner**:
+A long-running background component with one `Run(ctx) error` method, a durable Checkpoint, and no opinion about the process it lives in: the relay, a projection's catch-up and inbox readers, its inbox writers, a worklist worker. Cancelling its context returns nil; anything else returns the error and leaves the Checkpoint where resuming is safe.
+_Avoid_: Daemon, background job, thread
+
+**Supervisor**:
+The loop that owns a Runner's failure: it restarts the Runner from its Checkpoint with bounded backoff, counts every restart, and reports a failure when it is news. It never cancels siblings and never decides what is fatal to the process — that stays in the composition root (ADR-0019).
+_Avoid_: Watchdog, restart manager, errgroup
+
 **Origin Trace**:
 The trace that caused a piece of durable work, carried as `gohex.origin.traceparent` in metadata. A worker draining a worklist links its new trace to the origin instead of continuing it, so latency stays honest and causality stays queryable.
 _Avoid_: Parent trace, root trace (the origin is neither, by design)

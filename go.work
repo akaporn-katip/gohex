@@ -13,4 +13,5 @@ use (
 	./projection-postgres
 	./relay
 	./saga
+	./supervise
 )
