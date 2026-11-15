@@ -5,19 +5,20 @@ go 1.26
 require (
 	github.com/akaporn-katip/gohex-example/contracts v0.0.0
 	github.com/akaporn-katip/gohex/broker v0.1.0
-	github.com/akaporn-katip/gohex/broker-kafka v0.1.0
+	github.com/akaporn-katip/gohex/broker-kafka v0.2.0
 	github.com/akaporn-katip/gohex/cqrs v0.1.0
 	github.com/akaporn-katip/gohex/cqrs-postgres v0.1.0
-	github.com/akaporn-katip/gohex/eventstore v0.1.0
-	github.com/akaporn-katip/gohex/eventstore-postgres v0.1.0
+	github.com/akaporn-katip/gohex/eventstore v0.3.0
+	github.com/akaporn-katip/gohex/eventstore-postgres v0.3.1
 	github.com/akaporn-katip/gohex/kernel v0.1.0
-	github.com/akaporn-katip/gohex/o11y v0.1.0
-	github.com/akaporn-katip/gohex/relay v0.1.0
+	github.com/akaporn-katip/gohex/o11y v0.6.0
+	github.com/akaporn-katip/gohex/relay v0.2.0
+	github.com/akaporn-katip/gohex/supervise v0.1.0
 	github.com/jackc/pgx/v5 v5.7.6
-	golang.org/x/sync v0.13.0
 )
 
 require (
+	github.com/akaporn-katip/gohex/projection v0.4.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -31,15 +32,22 @@ require (
 	github.com/twmb/franz-go v1.18.0 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.9.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
+	go.opentelemetry.io/contrib/bridges/otelslog v0.10.0 // indirect
 	go.opentelemetry.io/otel v1.35.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.11.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.35.0 // indirect
+	go.opentelemetry.io/otel/log v0.11.0 // indirect
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
+	go.opentelemetry.io/otel/sdk/log v0.11.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
+	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a // indirect
