@@ -11,7 +11,24 @@ Bump rules:
 - **major** — restructured workflow files, or guidance changed because a gohex
   guarantee or API contract changed.
 
-## 4.0.0 — unreleased (lands with the supervise v0.1.0 and o11y v0.6.0 tags)
+## 5.0.0 — lands with the gohex v0.7.0 tag
+
+gohex is one module (ADR-0020), so the install line that opened this
+skill — `go get github.com/akaporn-katip/gohex/<module>@latest` — was
+not merely stale but actively harmful: every per-capability module path
+is now retracted and deprecated, so following it pins a withdrawn
+version and a second requirement that makes the import ambiguous. It is
+one `go get github.com/akaporn-katip/gohex@latest`, and SKILL.md now
+states the trap directly: never put a
+`github.com/akaporn-katip/gohex/<name>` line in a `require` block.
+Import paths did not change, which is why nothing else in this skill
+about calling the libraries moved — the module table is now a package
+table, "the framework modules" is "the framework packages", Rule 0 reads
+`<capability>/` instead of `<module>/`, and `references/scaffold.md`
+cites ADR-0020 and no longer tells you to run the framework's tests once
+per module. ADR range is now 0001–0020.
+
+## 4.0.0 — lands with the supervise v0.1.0 and o11y v0.6.0 tags
 
 gohex ships the supervisor its runners always assumed (ADR-0019), so the
 composition-root guidance changes shape: the new `supervise` module gets

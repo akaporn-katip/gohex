@@ -1,7 +1,7 @@
 ---
 name: build-with-gohex
 description: Build event-driven Go microservices with the gohex framework libraries (github.com/akaporn-katip/gohex). Use when the user mentions gohex, or the project already imports github.com/akaporn-katip/gohex/* — for scaffolding a new service, adding aggregates/events/commands, integrating services via contracts/sagas/projections, or wiring OpenTelemetry through the async flow. Do not use for generic event-sourcing or CQRS advice in projects that don't use gohex.
-version: 4.0.0
+version: 5.0.0
 ---
 
 # Build with gohex
@@ -10,8 +10,16 @@ gohex (`github.com/akaporn-katip/gohex`) is a set of importable Go framework
 libraries for event-driven microservices: hexagonal architecture, event-sourced
 aggregates, CQRS, hybrid read-model projections, and event-sourced sagas. A
 runnable four-service example system — the canonical usage reference — lives in
-its own repo, `github.com/akaporn-katip/gohex-example`. Modules are pulled per
-capability: `go get github.com/akaporn-katip/gohex/<module>@latest`.
+its own repo, `github.com/akaporn-katip/gohex-example`. The whole framework is
+one Go module, pulled in one line: `go get github.com/akaporn-katip/gohex@latest`.
+
+Import paths are per capability even though the module is not:
+`import "github.com/akaporn-katip/gohex/eventstore"`. Before v0.7.0 each
+capability was its own module with its own tag; those module paths are
+retracted and deprecated. Never add a `github.com/akaporn-katip/gohex/<name>`
+line to a `require` block — one `github.com/akaporn-katip/gohex` requirement
+covers every package, and holding both makes the import ambiguous and the
+build fail.
 
 ## Rule 0 — read the source, never trust remembered signatures
 
@@ -27,7 +35,7 @@ source is the only truth. Before writing any code that calls a gohex lib:
    [ -d /tmp/gohex-example-src ] || git clone --depth 1 https://github.com/akaporn-katip/gohex-example /tmp/gohex-example-src
    ```
 
-2. Read the exact constructors/types you are about to use in `<module>/` at
+2. Read the exact constructors/types you are about to use in `<capability>/` at
    the gohex repo root, and imitate the canonical example services (pointers
    in the reference files below). Paths cited as `gohex-example/...` are
    relative to the gohex-example checkout; all other paths are relative to
@@ -48,9 +56,10 @@ Between services: **only** the broker — commands in on `<service>.commands`
 topics, integration events out on `<service>.events` topics. Never a
 synchronous call, never another service's database (ADR-0008).
 
-The modules (each is its own Go module at the gohex repo root):
+The capabilities (one directory each at the gohex repo root, all in the same
+module):
 
-| Module | Role |
+| Package | Role |
 |---|---|
 | `kernel` | Zero-dependency domain kernel: `Root`/`Raise`/`Apply` aggregates, typed `ID[T]`, `DomainError` |
 | `eventstore` (+`-postgres`) | Streams, optimistic concurrency, registry + upcasters, global-sequence tailing, checkpoints, `Repository[A]` |
@@ -64,7 +73,7 @@ The modules (each is its own Go module at the gohex repo root):
 
 ## The guarantees you must not break
 
-Every design choice below is pinned by a test in the framework modules — the
+Every design choice below is pinned by a test in the framework packages — the
 reference files cite them. When your code fights one of these, you are holding it wrong:
 
 - **Private by default.** Domain events never leave the service. Only an
@@ -96,7 +105,7 @@ Every aggregate, saga, and projection you build ships with tests in the gohex
 style, using the framework's in-memory implementations (memory event store,
 memory broker, memory inbox, memory deduplicator) — no mocks, no containers.
 Each reference file names the canonical `_test.go` files in the framework
-modules whose patterns to imitate and which guarantee they pin.
+packages whose patterns to imitate and which guarantee they pin.
 
 ## Workflow guides
 

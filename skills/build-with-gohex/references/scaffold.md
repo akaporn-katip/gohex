@@ -8,8 +8,10 @@ Canonical examples in the checkouts — read them before and while writing:
 - `gohex-example/billing/` — the minimal service shape: wire-command consumer +
   aggregate + relay, no HTTP, no projection. Start from this shape unless you
   need an edge or a read model.
-- ADR-0013 (framework and example split into two repos), ADR-0009 (module-per-capability,
-  domain imports only the kernel).
+- ADR-0013 (framework and example split into two repos), ADR-0020 (the framework
+  is one module; one `require` line, import paths per capability, the old
+  per-capability module paths retracted), ADR-0009 (domain imports only the
+  kernel).
 
 ## Layout
 
@@ -104,4 +106,6 @@ double-processing (at-least-once + dedup working).
 The composition root itself stays untested (it's wiring), but nothing else:
 every aggregate, consumer handler, projection, and saga you scaffold ships
 with tests per the other reference files. Run the whole workspace the way the
-repo does: `go test ./...` per module (see the `test` task in `Taskfile.yml`).
+repo does (see the `test` task in each `Taskfile.yml`): `go test ./...` once in
+the framework, which is a single module, and once per service module in the
+example, which is still a workspace of its own.
