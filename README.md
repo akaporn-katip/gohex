@@ -76,10 +76,8 @@ talking **only** through Kafka: commands in, facts out. From that
 directory, `docker compose up --build -d` brings up the whole flow,
 including one OpenTelemetry trace across every Kafka hop.
 
-The example is its own Go workspace (`gohex-example/go.work`) and currently
-pins **legacy multi-module tags** (e.g., `eventstore/v0.3.0`). It has not yet
-been updated to the unified module and will be migrated after the first
-unified release is tagged.
+The example is its own Go workspace (`gohex-example/go.work`) and uses
+the unified module (`github.com/akaporn-katip/gohex v0.7.0`).
 
 ## License
 

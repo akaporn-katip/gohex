@@ -63,9 +63,7 @@ next to this repo and create an untracked workspace overlay:
 
 ```sh
 cp go.work go.work.dev
-go work edit $(for m in kernel broker broker-kafka eventstore eventstore-postgres \
-  cqrs cqrs-postgres relay projection projection-postgres saga supervise o11y; do
-  printf ' -use ../gohex/%s' $m; done) go.work.dev
+go work edit -use ../gohex go.work.dev
 GOWORK=$(pwd)/go.work.dev go build ./ordering/...
 ```
 

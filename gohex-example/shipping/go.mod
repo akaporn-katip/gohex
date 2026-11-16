@@ -1,24 +1,14 @@
 module github.com/akaporn-katip/gohex-example/shipping
 
-go 1.26
+go 1.26.0
 
 require (
+	github.com/akaporn-katip/gohex v0.7.0
 	github.com/akaporn-katip/gohex-example/contracts v0.0.0
-	github.com/akaporn-katip/gohex/broker v0.1.0
-	github.com/akaporn-katip/gohex/broker-kafka v0.2.0
-	github.com/akaporn-katip/gohex/cqrs v0.1.0
-	github.com/akaporn-katip/gohex/cqrs-postgres v0.1.0
-	github.com/akaporn-katip/gohex/eventstore v0.3.0
-	github.com/akaporn-katip/gohex/eventstore-postgres v0.3.1
-	github.com/akaporn-katip/gohex/kernel v0.1.0
-	github.com/akaporn-katip/gohex/o11y v0.6.0
-	github.com/akaporn-katip/gohex/relay v0.2.0
-	github.com/akaporn-katip/gohex/supervise v0.1.0
 	github.com/jackc/pgx/v5 v5.7.6
 )
 
 require (
-	github.com/akaporn-katip/gohex/projection v0.4.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
