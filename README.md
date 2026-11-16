@@ -22,14 +22,16 @@ ubiquitous language lives in [`CONTEXT.md`](CONTEXT.md).
 | `supervise` | The restart loop every `Run(ctx) error` runner assumes: bounded backoff from the checkpoint, one runner's failure never cancels its siblings |
 | `o11y` | OpenTelemetry woven through the async flow: one trace from HTTP edge to the last service, linked traces across polling workers |
 
-Each module is independently versioned and importable:
+All packages are part of one Go module, versioned together:
 
 ```sh
-go get github.com/akaporn-katip/gohex/kernel@v0.1.0
-go get github.com/akaporn-katip/gohex/eventstore@v0.1.0
+go get github.com/akaporn-katip/gohex@vX.Y.Z
 ```
 
-Cutting a release — order, tagging, go.sum discipline: [RELEASING.md](RELEASING.md).
+Import statements remain unchanged — `import "github.com/akaporn-katip/gohex/eventstore"`
+still works; the module path is the prefix, the package path is the full import.
+
+Cutting a release: [RELEASING.md](RELEASING.md).
 
 Key guarantees, all pinned by tests:
 
@@ -51,9 +53,10 @@ talking **only** through Kafka: commands in, facts out. From that
 directory, `docker compose up --build -d` brings up the whole flow,
 including one OpenTelemetry trace across every Kafka hop.
 
-The example is its own Go workspace (`gohex-example/go.work`) and pins
-**released** gohex module versions rather than the local source, so it
-always reflects what users of the published tags get.
+The example is its own Go workspace (`gohex-example/go.work`) and currently
+pins **legacy multi-module tags** (e.g., `eventstore/v0.3.0`). It has not yet
+been updated to the unified module and will be migrated after the first
+unified release is tagged.
 
 ## License
 

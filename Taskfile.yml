@@ -2,9 +2,5 @@ version: "3"
 
 tasks:
   test:
-    desc: Run every module's tests
-    cmd: |
-      for m in */; do
-        [ -f "$m/go.mod" ] || continue
-        (cd $m && go test ./...) || exit 1
-      done
+    desc: Run all tests
+    cmd: go test ./...
