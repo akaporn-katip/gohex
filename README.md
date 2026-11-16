@@ -33,6 +33,29 @@ still works; the module path is the prefix, the package path is the full import.
 
 Cutting a release: [RELEASING.md](RELEASING.md).
 
+## Running the tests
+
+```sh
+task test              # in-memory only; the adapter suites skip themselves
+task test:integration  # the same suites against real Postgres and Kafka
+```
+
+The adapters are tested by pointing the *shared contract suites* —
+`storetest`, `brokertest`, `inboxtest` — at a real backing service, so
+`eventstore-postgres` and `broker-kafka` are held to the same
+requirements as the in-memory implementations rather than to a
+hand-written set of their own. Those suites skip when
+`GOHEX_POSTGRES_TEST_DSN` and `GOHEX_KAFKA_TEST_BROKERS` are unset,
+which is why `task test` reports success while proving nothing about
+pgx or franz-go. Treat `task test:integration` as the real gate before a
+release.
+
+`task test:integration` starts [`docker-compose.test.yml`](docker-compose.test.yml),
+waits on its healthchecks, runs every test, and tears the services down
+even when the suites fail. The harness listens on 55432 and 59094, so a
+Postgres of your own on 5432 and the example stack on 9094 are left
+alone. Use `task test:watch` to keep the services up between runs.
+
 Key guarantees, all pinned by tests:
 
 - **Atomic decide-and-send** — a saga's decision and its outgoing command

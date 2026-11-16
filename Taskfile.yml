@@ -1,6 +1,59 @@
 version: "3"
 
+# The adapter contract suites skip themselves unless pointed at a real
+# Postgres or Kafka, so `task test` is honest but incomplete: it proves
+# the in-memory implementations and nothing about pgx or franz-go.
+# `task test:integration` is what actually exercises the adapters.
+env:
+  GOWORK: off
+  GOHEX_TEST_DSN: postgres://postgres:gohex@localhost:55432/gohex_test
+  GOHEX_TEST_BROKERS: localhost:59094
+
+vars:
+  COMPOSE: docker compose -f docker-compose.test.yml
+
 tasks:
   test:
-    desc: Run all tests
+    desc: Run all tests (adapter contract suites skip without backing services)
     cmd: go test ./...
+
+  test:integration:
+    desc: Run every test against real Postgres and Kafka, then tear them down
+    cmds:
+      - task: up
+      # The teardown must survive a failing suite, so the exit code is
+      # carried by hand rather than by task's own failure handling.
+      - |
+        set +e
+        GOHEX_POSTGRES_TEST_DSN="$GOHEX_TEST_DSN" \
+        GOHEX_KAFKA_TEST_BROKERS="$GOHEX_TEST_BROKERS" \
+          go test -count=1 ./...
+        code=$?
+        {{.COMPOSE}} down -v --remove-orphans >/dev/null 2>&1
+        exit $code
+
+  test:watch:
+    desc: Start the services and run tests against them, leaving them up
+    cmds:
+      - task: up
+      - |
+        GOHEX_POSTGRES_TEST_DSN="$GOHEX_TEST_DSN" \
+        GOHEX_KAFKA_TEST_BROKERS="$GOHEX_TEST_BROKERS" \
+          go test -count=1 ./...
+
+  up:
+    desc: Start the test Postgres and Kafka and wait for them to be healthy
+    # --wait blocks on the healthchecks in the compose file, which is
+    # what keeps the suites from racing a Kafka that is still electing.
+    cmd: "{{.COMPOSE}} up -d --wait"
+
+  down:
+    desc: Stop the test services and discard their data
+    cmd: "{{.COMPOSE}} down -v --remove-orphans"
+
+  check:
+    desc: Everything CI would run, short of the integration suites
+    cmds:
+      - gofmt -l . | grep -v gohex-example | (! grep .)
+      - go vet ./...
+      - go test ./...

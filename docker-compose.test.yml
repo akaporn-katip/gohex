@@ -1,0 +1,64 @@
+# Disposable backing services for gohex's own contract tests.
+#
+# This is the framework's test harness, not a deployment example — see
+# gohex-example/docker-compose.yml for that. Nothing here is durable:
+# Postgres runs on tmpfs with fsync off, and both services are meant to
+# be torn down with `-v` after every run. Use `task test:integration`
+# rather than running these by hand.
+#
+# Ports are deliberately in the 5xxxx range so a developer's own
+# Postgres on 5432 or the example stack on 9094 keeps working while
+# these run.
+name: gohex-test
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: gohex
+      POSTGRES_DB: gohex_test
+    # Durability is the opposite of what a test database wants: the data
+    # must not survive the run, and every fsync is latency the contract
+    # suites pay on each of their many small writes.
+    command: >
+      postgres
+      -c fsync=off
+      -c synchronous_commit=off
+      -c full_page_writes=off
+    tmpfs:
+      - /var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gohex_test"]
+      interval: 1s
+      timeout: 2s
+      retries: 60
+
+  kafka:
+    image: apache/kafka:3.8.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,HOST://:59094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,HOST://localhost:59094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # The contract suite names its own topics per run; it does not
+      # provision them.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # A single-broker cluster has no one to wait for, and the default
+      # 3s rebalance delay is pure latency in a test run.
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    ports:
+      - "127.0.0.1:59094:59094"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
