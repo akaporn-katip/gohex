@@ -20,6 +20,16 @@ tasks:
         (cd $m && go test ./...) || exit 1
       done
 
+  check:
+    desc: Everything CI would run across the five modules
+    # GOWORK=off is what a reader who clones one service sees; the
+    # workspace would hide a requirement that only resolves locally.
+    cmd: |
+      test -z "$(gofmt -l .)" || { echo "gofmt:"; gofmt -l .; exit 1; }
+      for m in contracts ordering billing inventory shipping; do
+        (cd $m && GOWORK=off go build ./... && GOWORK=off go vet ./... && GOWORK=off go test ./...) || exit 1
+      done
+
   demo:
     desc: Place an order and poll its status
     cmd: |

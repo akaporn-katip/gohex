@@ -3,11 +3,11 @@ package app
 import (
 	"context"
 
-	"github.com/akaporn-katip/gohex/broker"
-	"github.com/akaporn-katip/gohex/projection"
 	"github.com/akaporn-katip/gohex-example/contracts"
 	"github.com/akaporn-katip/gohex-example/ordering/internal/domain"
 	"github.com/akaporn-katip/gohex-example/ordering/internal/ports"
+	"github.com/akaporn-katip/gohex/broker"
+	"github.com/akaporn-katip/gohex/projection"
 )
 
 // ForeignTopics are the topics whose integration events feed the

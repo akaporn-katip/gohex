@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/akaporn-katip/gohex-example/ordering/internal/ports"
 	"github.com/akaporn-katip/gohex/cqrs"
 	"github.com/akaporn-katip/gohex/o11y"
-	"github.com/akaporn-katip/gohex-example/ordering/internal/ports"
 )
 
 // NotifierConfig tunes the worker.

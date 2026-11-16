@@ -6,15 +6,15 @@ package app
 import (
 	"context"
 
+	"github.com/akaporn-katip/gohex-example/contracts"
+	"github.com/akaporn-katip/gohex-example/ordering/internal/domain"
+	"github.com/akaporn-katip/gohex-example/ordering/internal/ports"
 	"github.com/akaporn-katip/gohex/broker"
 	"github.com/akaporn-katip/gohex/cqrs"
 	"github.com/akaporn-katip/gohex/eventstore"
 	"github.com/akaporn-katip/gohex/kernel"
 	"github.com/akaporn-katip/gohex/relay"
 	"github.com/akaporn-katip/gohex/saga"
-	"github.com/akaporn-katip/gohex-example/contracts"
-	"github.com/akaporn-katip/gohex-example/ordering/internal/domain"
-	"github.com/akaporn-katip/gohex-example/ordering/internal/ports"
 )
 
 // RegisterEvents registers ordering's domain events and the saga stream
