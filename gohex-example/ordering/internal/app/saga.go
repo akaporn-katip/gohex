@@ -2,8 +2,15 @@ package app
 
 import (
 	"github.com/akaporn-katip/gohex-example/contracts"
+	"github.com/akaporn-katip/gohex/featureflag"
 	"github.com/akaporn-katip/gohex/saga"
 )
+
+// FlagExpressShipping is evaluated once, at the HTTP edge, and pinned
+// into metadata; every later step reads the pinned decision (gohex
+// ADR-0021). A flag flipped while an order is mid-flight must not make
+// one half of that order express and the other half not.
+const FlagExpressShipping = "express-shipping"
 
 // Fulfillment is the saga's state: what the flow still needs to
 // remember between steps. Handlers are pure decision functions
@@ -56,12 +63,18 @@ func NewFulfillmentSaga() *saga.Definition[Fulfillment] {
 			return saga.End(), nil // nothing to compensate: nothing happened yet
 		})
 
-	saga.OnEvent(d,
+	// The only handler that needs Meta: it acts on the flag decision the
+	// edge pinned onto the envelope, and turns it into business data on
+	// the command (shipping knows about express shipping, not flags).
+	saga.OnEventWithMeta(d,
 		func(e contracts.StockReservedV1) string { return e.OrderID },
-		func(s *Fulfillment, e contracts.StockReservedV1) (saga.Decisions, error) {
+		func(s *Fulfillment, e contracts.StockReservedV1, m saga.Meta) (saga.Decisions, error) {
 			return saga.Send(saga.OutCommand{
 				Topic: contracts.TopicShippingCommands,
-				Cmd:   contracts.CreateShipment{OrderID: e.OrderID},
+				Cmd: contracts.CreateShipment{
+					OrderID: e.OrderID,
+					Express: featureflag.PinnedIn(m.Metadata, FlagExpressShipping),
+				},
 			}), nil
 		})
 

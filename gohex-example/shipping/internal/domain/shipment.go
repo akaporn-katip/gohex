@@ -15,6 +15,7 @@ type OrderRef string
 
 type ShipmentDispatched struct {
 	OrderID string `json:"order_id"`
+	Express bool   `json:"express"`
 }
 
 func (ShipmentDispatched) EventName() string { return "shipping.shipment_dispatched" }
@@ -28,6 +29,7 @@ type Shipment struct {
 	kernel.Root
 
 	order      OrderRef
+	express    bool
 	dispatched bool
 }
 
@@ -36,10 +38,14 @@ func NewShipment() *Shipment { return &Shipment{} }
 // Dispatched reports whether the shipment already went out.
 func (s *Shipment) Dispatched() bool { return s.dispatched }
 
+// Express reports whether the order was placed under the express
+// shipping decision the ordering edge made.
+func (s *Shipment) Express() bool { return s.express }
+
 // Create dispatches a shipment for the order.
-func Create(order OrderRef) (*Shipment, error) {
+func Create(order OrderRef, express bool) (*Shipment, error) {
 	s := NewShipment()
-	if err := kernel.Raise(s, ShipmentDispatched{OrderID: string(order)}); err != nil {
+	if err := kernel.Raise(s, ShipmentDispatched{OrderID: string(order), Express: express}); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -49,6 +55,7 @@ func (s *Shipment) Apply(e kernel.DomainEvent) error {
 	switch ev := e.(type) {
 	case ShipmentDispatched:
 		s.order = OrderRef(ev.OrderID)
+		s.express = ev.Express
 		s.dispatched = true
 	default:
 		return fmt.Errorf("shipment: unknown event %q", e.EventName())

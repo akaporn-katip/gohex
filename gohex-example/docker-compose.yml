@@ -58,6 +58,10 @@ services:
       <<: *service-env
       DATABASE_URL: postgres://postgres:gohex@postgres:5432/ordering
       PORT: "8080"
+      # The express-shipping feature flag, served by the Static source.
+      # A real deployment points the OpenFeature adapter at flagd or
+      # Unleash instead; nothing else in the service changes.
+      EXPRESS_SHIPPING: "false"
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:

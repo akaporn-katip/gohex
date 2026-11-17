@@ -3,7 +3,7 @@ module github.com/akaporn-katip/gohex-example/ordering
 go 1.26.0
 
 require (
-	github.com/akaporn-katip/gohex v0.7.0
+	github.com/akaporn-katip/gohex v0.9.0
 	github.com/akaporn-katip/gohex-example/contracts v0.0.0
 	github.com/jackc/pgx/v5 v5.7.6
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0
@@ -39,9 +39,9 @@ require (
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/sync v0.13.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/grpc v1.71.0 // indirect

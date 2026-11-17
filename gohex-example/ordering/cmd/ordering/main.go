@@ -26,6 +26,7 @@ import (
 	"github.com/akaporn-katip/gohex/cqrs"
 	"github.com/akaporn-katip/gohex/eventstore"
 	espostgres "github.com/akaporn-katip/gohex/eventstore-postgres"
+	"github.com/akaporn-katip/gohex/featureflag"
 	"github.com/akaporn-katip/gohex/o11y"
 	"github.com/akaporn-katip/gohex/projection"
 	projectionpg "github.com/akaporn-katip/gohex/projection-postgres"
@@ -92,6 +93,15 @@ func run() error {
 	})
 	app.RegisterTranslators(rly)
 
+	// Feature flags: Install stamps whatever the edge recorded onto every
+	// appended event, so the saga sees the same decision hours later
+	// (gohex ADR-0021). A real deployment swaps Static for the OpenFeature
+	// adapter; the edge code does not change.
+	featureflag.Install()
+	flags := featureflag.NewClient(featureflag.Static{
+		app.FlagExpressShipping: envOr("EXPRESS_SHIPPING", "false") == "true",
+	})
+
 	// Saga: the fulfillment workflow, driven by integration events.
 	fulfillment := saga.NewRunner(app.NewFulfillmentSaga(), store, registry)
 
@@ -137,7 +147,7 @@ func run() error {
 	// The HTTP server is the one runner whose failure IS the process's: a
 	// service that cannot serve its API has nothing left to supervise.
 	// Deciding that is the composition root's job and nobody else's.
-	err = serveHTTP(ctx, envOr("PORT", "8080"), httpapi.New(bus, queries))
+	err = serveHTTP(ctx, envOr("PORT", "8080"), httpapi.New(bus, queries, flags))
 	stop()     // whatever ended the server, the runners wind down with it
 	sup.Wait() // Wait only waits; the context above is what cancels
 	return err

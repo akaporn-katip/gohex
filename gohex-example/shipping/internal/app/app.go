@@ -51,7 +51,7 @@ func (h *Handlers) CreateShipment(ctx context.Context, cmd contracts.CreateShipm
 	if !errors.Is(err, eventstore.ErrNotFound) {
 		return err
 	}
-	s, err := domain.Create(domain.OrderRef(cmd.OrderID))
+	s, err := domain.Create(domain.OrderRef(cmd.OrderID), cmd.Express)
 	if err != nil {
 		return err
 	}

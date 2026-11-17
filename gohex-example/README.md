@@ -47,6 +47,22 @@ curl -s -X POST localhost:8080/orders -d '{"cents": 4999, "currency": "USD", "qt
 # -> status: rejected, then refunded
 ```
 
+A feature flag decided once, at the edge:
+
+```sh
+# turn the flag on for the ordering service and place an order
+EXPRESS_SHIPPING=true docker compose up -d ordering
+curl -s -X POST localhost:8080/orders -d '{"cents": 4999, "currency": "USD", "qty": 2}'
+```
+
+The HTTP edge is the only place that asks `express-shipping`; the answer
+rides on the order's events as `gohex.flags` metadata, and the saga reads
+it back with `featureflag.PinnedIn` when stock is reserved, turning it
+into `CreateShipment{Express: true}`. Flip the flag off while an order is
+mid-flight and that order still ships express: the decision was taken
+when it was placed, not when it reached shipping
+([gohex ADR-0021](https://github.com/akaporn-katip/gohex/blob/main/docs/adr/0021-feature-flags-evaluated-at-the-edge-and-pinned-into-metadata.md)).
+
 Then open **http://localhost:8090** (HyperDX — the ClickHouse-backed
 ClickStack, OTLP built in) and find the trace: one timeline from
 `POST /orders` through the saga, billing, inventory, and shipping —

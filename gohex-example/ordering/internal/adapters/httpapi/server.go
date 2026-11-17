@@ -15,14 +15,17 @@ import (
 	"github.com/akaporn-katip/gohex-example/ordering/internal/ports"
 	"github.com/akaporn-katip/gohex/cqrs"
 	"github.com/akaporn-katip/gohex/eventstore"
+	"github.com/akaporn-katip/gohex/featureflag"
 	"github.com/akaporn-katip/gohex/kernel"
 )
 
 // New builds the HTTP handler. Every request runs inside an otelhttp
 // root span — the start of the trace that the o11y weave carries through
-// the store, the broker, and the other services.
-func New(bus *cqrs.Bus, queries *cqrs.QueryBus) http.Handler {
-	s := &server{bus: bus, queries: queries}
+// the store, the broker, and the other services. flags is here and
+// nowhere else: the edge is the only place that asks a feature flag
+// question (gohex ADR-0021).
+func New(bus *cqrs.Bus, queries *cqrs.QueryBus, flags *featureflag.Client) http.Handler {
+	s := &server{bus: bus, queries: queries, flags: flags}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /orders", s.placeOrder)
 	mux.HandleFunc("GET /orders/{id}", s.getOrder)
@@ -35,6 +38,7 @@ func New(bus *cqrs.Bus, queries *cqrs.QueryBus) http.Handler {
 type server struct {
 	bus     *cqrs.Bus
 	queries *cqrs.QueryBus
+	flags   *featureflag.Client
 }
 
 type placeOrderRequest struct {
@@ -75,9 +79,19 @@ func (s *server) placeOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The flag is evaluated here, once, while we still know who the
+	// customer is — and recorded so it rides along as metadata on every
+	// event this request appends. The saga reads that decision later
+	// instead of asking again (gohex ADR-0021).
+	ctx := featureflag.Record(r.Context())
+	s.flags.Enabled(ctx, app.FlagExpressShipping, featureflag.Subject{
+		Key:   customer.String(),
+		Attrs: map[string]string{"currency": total.Currency()},
+	}, false)
+
 	id := kernel.NewID[domain.Order]()
 	cmd := app.PlaceOrder{ID: id, Customer: customer, Total: total, Qty: qty}
-	if err := s.bus.Dispatch(r.Context(), cmd); err != nil {
+	if err := s.bus.Dispatch(ctx, cmd); err != nil {
 		writeError(w, err)
 		return
 	}

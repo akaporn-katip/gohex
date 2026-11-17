@@ -108,8 +108,15 @@ type ReserveStock struct {
 
 func (ReserveStock) CommandName() string { return "inventory.reserve_stock" }
 
+// CreateShipment carries Express as business data, not as a flag: the
+// saga reads the pinned express-shipping decision from metadata
+// (gohex ADR-0021) and states the CONSEQUENCE here, so shipping never
+// learns what a feature flag is. Version 2 because adding the field
+// changed the shape of v1 (ADR-0004).
 type CreateShipment struct {
 	OrderID string `json:"order_id"`
+	Express bool   `json:"express"`
 }
 
-func (CreateShipment) CommandName() string { return "shipping.create_shipment" }
+func (CreateShipment) CommandName() string  { return "shipping.create_shipment" }
+func (CreateShipment) ContractVersion() int { return 2 }
