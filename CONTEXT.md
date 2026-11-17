@@ -91,3 +91,17 @@ _Avoid_: Watchdog, restart manager, errgroup
 **Origin Trace**:
 The trace that caused a piece of durable work, carried as `gohex.origin.traceparent` in metadata. A worker draining a worklist links its new trace to the origin instead of continuing it, so latency stays honest and causality stays queryable.
 _Avoid_: Parent trace, root trace (the origin is neither, by design)
+
+### Operations
+
+**Feature Flag**:
+A named boolean switch, owned by the operator rather than the domain, that releases unfinished work or kills a behaviour in production. Evaluated only at the edge of a decision — never inside an aggregate, where it would make replay depend on today's configuration.
+_Avoid_: Feature toggle, switch, kill switch (the last is a kind of feature flag, not a separate term)
+
+**Subject**:
+Whoever a flag is evaluated for — a user, a tenant, an order — reduced to a key plus optional attributes. The flag backend, not gohex, decides what a subject's key means for allowlists and percentage rollouts.
+_Avoid_: Evaluation context, targeting key, principal
+
+**Pinned Flag**:
+A flag decision taken at the edge and carried in metadata (`gohex.flags`) so that every later hop — relay, saga, projection — acts on the decision that caused the work rather than re-asking. Absence from the list means off.
+_Avoid_: Flag snapshot, sticky flag

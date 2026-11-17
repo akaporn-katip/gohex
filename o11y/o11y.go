@@ -112,7 +112,7 @@ type Config struct {
 func Init(ctx context.Context, cfg Config) (shutdown func(context.Context) error, err error) {
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{}, propagation.Baggage{}))
-	eventstore.SetContextMetadata(func(ctx context.Context) map[string]string {
+	eventstore.AddContextMetadata(func(ctx context.Context) map[string]string {
 		// The origin stamp (if a worker put one on ctx, ADR-0015) travels
 		// alongside the live trace context, so a linked trace stays
 		// traceable to its origin one hop further on.
