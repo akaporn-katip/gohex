@@ -2,6 +2,7 @@ package featureflag
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -76,10 +77,16 @@ type recorder struct {
 	flags []string
 }
 
+// record notes that flag evaluated true. A flag checked twice in one
+// request is recorded once: the pinned list is a set, and "a,a" would
+// only make the metadata bigger without saying anything new.
 func (r *recorder) record(flag string) {
 	r.mu.Lock()
+	defer r.mu.Unlock()
+	if slices.Contains(r.flags, flag) {
+		return
+	}
 	r.flags = append(r.flags, flag)
-	r.mu.Unlock()
 }
 
 func (r *recorder) snapshot() []string {
@@ -108,16 +115,6 @@ func recorderFromContext(ctx context.Context) *recorder {
 	r, _ := ctx.Value(recorderKey{}).(*recorder)
 	return r
 }
-
-// Install registers the pinning extractor with the event store. Call
-// this at startup, after o11y.Init and before the first [Record].
-// The extractor reads the recorder from the context and stamps its
-// enabled flags under [FlagsKey].
-//
-// This function is defined in install.go to avoid importing eventstore
-// into the featureflag package, which would create a cycle (eventstore
-// must not import featureflag, and featureflag must not import o11y).
-// See install.go for the implementation.
 
 // PinnedIn returns whether flag was enabled when the edge evaluated it,
 // reading from the metadata map that traveled with the event or message.
