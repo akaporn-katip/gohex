@@ -14,9 +14,15 @@ event under a single `gohex.flags` key holding a comma-separated list of
 enabled flag names. From there the existing plumbing carries them
 unchanged — the relay copies event metadata onto the envelope, the saga
 runner copies it onto the commands it issues, projections receive it on
-the item — so a saga resuming three days later reads
+the item — so a hop resuming three days later reads
 `featureflag.PinnedIn(md, "new-pricing")` and gets the answer the edge
-gave, not the answer operations would give today. Re-evaluating
+gave, not the answer operations would give today. Reading it needs a
+handler that is given the metadata: projections always were
+(`projection.Meta`, `projection.Item`), saga handlers were not, and
+`saga.OnEventWithMeta` closes that gap by passing `saga.Meta` alongside
+the event — which keeps handlers pure, because the triggering envelope
+is already stored verbatim in the saga's own stream and replays
+identically. Re-evaluating
 downstream was rejected for exactly that reason: a kill switch flipped
 mid-flow would leave half an order running new logic and half running
 old, with compensation unable to tell which. Carrying the subject
