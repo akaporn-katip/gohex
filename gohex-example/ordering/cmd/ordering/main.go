@@ -97,10 +97,13 @@ func run() error {
 	// appended event, so the saga sees the same decision hours later
 	// (gohex ADR-0021). A real deployment swaps Static for the OpenFeature
 	// adapter; the edge code does not change.
+	// ObserveFeatureFlags wraps the source, not the client: the client
+	// owns the pinning, the source owns the answer. The counter is what
+	// tells us the flag has finished rolling out and can be deleted.
 	featureflag.Install()
-	flags := featureflag.NewClient(featureflag.Static{
+	flags := featureflag.NewClient(o11y.ObserveFeatureFlags(featureflag.Static{
 		app.FlagExpressShipping: envOr("EXPRESS_SHIPPING", "false") == "true",
-	})
+	}))
 
 	// Saga: the fulfillment workflow, driven by integration events.
 	fulfillment := saga.NewRunner(app.NewFulfillmentSaga(), store, registry)

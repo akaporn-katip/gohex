@@ -2,6 +2,8 @@ github.com/akaporn-katip/gohex v0.7.0 h1:o7eAb+VcwiktlFAAOnjy4cHhaG15ufAbsrBvYdn
 github.com/akaporn-katip/gohex v0.7.0/go.mod h1:AzZ5rANY7Js6IfEC5SXQ8m/tI/rW6kb8/zRjaZB30DI=
 github.com/akaporn-katip/gohex v0.9.0 h1:AfBIeXvLduUOwH6a8xZNyksmbWDBkVNrHe7+HxJX0eo=
 github.com/akaporn-katip/gohex v0.9.0/go.mod h1:FQ5fRuIi2+OUCC3VF6hZlMj0pASYLyNhOJFzIidtVc0=
+github.com/akaporn-katip/gohex v0.10.0 h1:kpUlxduko4tdtET7DxjoG2NQmb+K1F0qcHqMyvu+RDg=
+github.com/akaporn-katip/gohex v0.10.0/go.mod h1:FQ5fRuIi2+OUCC3VF6hZlMj0pASYLyNhOJFzIidtVc0=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=
 github.com/cenkalti/backoff/v4 v4.3.0/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyYozVcomhLiZE=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

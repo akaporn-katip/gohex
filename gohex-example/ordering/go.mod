@@ -3,7 +3,7 @@ module github.com/akaporn-katip/gohex-example/ordering
 go 1.26.0
 
 require (
-	github.com/akaporn-katip/gohex v0.9.0
+	github.com/akaporn-katip/gohex v0.10.0
 	github.com/akaporn-katip/gohex-example/contracts v0.0.0
 	github.com/jackc/pgx/v5 v5.7.6
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0
