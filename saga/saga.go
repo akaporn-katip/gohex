@@ -84,6 +84,19 @@ func (d *Definition[S]) Name() string { return d.name }
 // Category returns the stream category saga instances live under.
 func (d *Definition[S]) Category() string { return "saga." + d.name }
 
+// Meta is the cross-cutting context of the envelope that triggered a
+// handler: trace context and flags pinned at the edge that started the
+// flow (gohex/featureflag, ADR-0021). It carries no business data —
+// that is what the event itself is for.
+//
+// Reading Meta keeps a handler pure: the envelope is stored verbatim in
+// the saga's own stream, so a replay three days later sees exactly the
+// metadata the original delivery carried, not today's configuration.
+// Do not mutate the map.
+type Meta struct {
+	Metadata map[string]string
+}
+
 // OnEvent registers a reaction to integration event E, matched by
 // contract name AND version. correlate derives the saga instance ID
 // from the event (e.g. the order ID); handle decides. Handlers must be
@@ -91,6 +104,19 @@ func (d *Definition[S]) Category() string { return "saga." + d.name }
 func OnEvent[S any, E broker.IntegrationEvent](d *Definition[S],
 	correlate func(e E) string,
 	handle func(s *S, e E) (Decisions, error),
+) {
+	OnEventWithMeta(d, correlate, func(s *S, e E, _ Meta) (Decisions, error) {
+		return handle(s, e)
+	})
+}
+
+// OnEventWithMeta is [OnEvent] for handlers that also need the
+// envelope's [Meta] — typically to read a flag decision pinned at the
+// edge rather than re-evaluating it mid-flow, which would let a flag
+// flipped today change a flow that started yesterday.
+func OnEventWithMeta[S any, E broker.IntegrationEvent](d *Definition[S],
+	correlate func(e E) string,
+	handle func(s *S, e E, m Meta) (Decisions, error),
 ) {
 	var zero E
 	key := eventKey(zero.EventName(), zero.ContractVersion())
@@ -117,7 +143,7 @@ func OnEvent[S any, E broker.IntegrationEvent](d *Definition[S],
 			if err != nil {
 				return Decisions{}, err
 			}
-			return handle(s, e)
+			return handle(s, e, Meta{Metadata: msg.Metadata})
 		},
 	}
 }
