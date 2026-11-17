@@ -21,7 +21,7 @@ ubiquitous language lives in [`CONTEXT.md`](CONTEXT.md).
 | `saga` | Event-sourced orchestration: workflows that decide, send, and compensate — atomically |
 | `supervise` | The restart loop every `Run(ctx) error` runner assumes: bounded backoff from the checkpoint, one runner's failure never cancels its siblings |
 | `featureflag` (+`-openfeature`) | Boolean release flags and kill switches, evaluated once at the edge and pinned into metadata so every later hop acts on the same decision |
-| `o11y` | OpenTelemetry woven through the async flow: one trace from HTTP edge to the last service, linked traces across polling workers |
+| `o11y` | OpenTelemetry woven through the async flow: one trace from HTTP edge to the last service, linked traces across polling workers, flag-evaluation counts |
 
 All packages are part of one Go module, versioned together:
 
