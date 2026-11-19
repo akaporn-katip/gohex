@@ -1,0 +1,30 @@
+name: OSV-Scanner PR Scan
+
+# What did this branch add? The reusable workflow scans main and the feature
+# branch, then reports only the difference — a vulnerability that main already
+# carries is main's problem, not this PR's, and won't block the merge.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/go.mod"
+      - "**/go.sum"
+      - "osv-scanner.toml"
+      - ".github/workflows/osv-scanner-pr.yml"
+  merge_group:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# The reusable workflow asks for these whether or not it uploads anything, and
+# a called job can never hold more than its caller — so they are granted here.
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  scan-pr:
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.7.1"

@@ -1,0 +1,27 @@
+name: OSV-Scanner Scheduled Scan
+
+# A dependency doesn't change when its CVE is published — the lockfile we
+# merged clean last month is the lockfile that's vulnerable today. So the whole
+# tree gets re-asked against osv.dev every Monday, not just when someone
+# touches a lockfile.
+on:
+  schedule:
+    - cron: "30 1 * * 1" # Mon 08:30 ICT
+  workflow_dispatch:
+
+# The reusable workflow asks for these whether or not it uploads anything, and
+# a called job can never hold more than its caller — so they are granted here.
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  scan-scheduled:
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.7.1"
+    with:
+      # Every module in go.work; --recursive finds them without naming each
+      # one, so a new module joins for free.
+      scan-args: |-
+        --recursive
+        ./
