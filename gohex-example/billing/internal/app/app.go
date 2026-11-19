@@ -6,12 +6,12 @@ import (
 	"context"
 	"errors"
 
+	"github.com/akaporn-katip/gohex-example/billing/internal/domain"
+	"github.com/akaporn-katip/gohex-example/contracts"
 	"github.com/akaporn-katip/gohex/broker"
 	"github.com/akaporn-katip/gohex/cqrs"
 	"github.com/akaporn-katip/gohex/eventstore"
 	"github.com/akaporn-katip/gohex/relay"
-	"github.com/akaporn-katip/gohex-example/billing/internal/domain"
-	"github.com/akaporn-katip/gohex-example/contracts"
 )
 
 // RegisterEvents registers billing's domain events with the store

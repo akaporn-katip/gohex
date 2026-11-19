@@ -17,6 +17,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/akaporn-katip/gohex-example/contracts"
+	"github.com/akaporn-katip/gohex-example/shipping/internal/app"
 	"github.com/akaporn-katip/gohex/broker"
 	kafkabroker "github.com/akaporn-katip/gohex/broker-kafka"
 	"github.com/akaporn-katip/gohex/cqrs"
@@ -26,8 +28,6 @@ import (
 	"github.com/akaporn-katip/gohex/o11y"
 	"github.com/akaporn-katip/gohex/relay"
 	"github.com/akaporn-katip/gohex/supervise"
-	"github.com/akaporn-katip/gohex-example/contracts"
-	"github.com/akaporn-katip/gohex-example/shipping/internal/app"
 )
 
 func main() {

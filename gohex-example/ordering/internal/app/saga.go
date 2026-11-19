@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/akaporn-katip/gohex/saga"
 	"github.com/akaporn-katip/gohex-example/contracts"
+	"github.com/akaporn-katip/gohex/saga"
 )
 
 // Fulfillment is the saga's state: what the flow still needs to

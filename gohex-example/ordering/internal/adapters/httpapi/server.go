@@ -10,12 +10,12 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/akaporn-katip/gohex/cqrs"
-	"github.com/akaporn-katip/gohex/eventstore"
-	"github.com/akaporn-katip/gohex/kernel"
 	"github.com/akaporn-katip/gohex-example/ordering/internal/app"
 	"github.com/akaporn-katip/gohex-example/ordering/internal/domain"
 	"github.com/akaporn-katip/gohex-example/ordering/internal/ports"
+	"github.com/akaporn-katip/gohex/cqrs"
+	"github.com/akaporn-katip/gohex/eventstore"
+	"github.com/akaporn-katip/gohex/kernel"
 )
 
 // New builds the HTTP handler. Every request runs inside an otelhttp
