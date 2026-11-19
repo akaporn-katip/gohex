@@ -15,7 +15,6 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	otellog "go.opentelemetry.io/otel/log"
 	logglobal "go.opentelemetry.io/otel/log/global"
 	lognoop "go.opentelemetry.io/otel/log/noop"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
@@ -78,7 +77,7 @@ func TestSlogHandlerFansOutToStdoutAndOTLP(t *testing.T) {
 		t.Errorf("OTLP span id = %s, want %s", rec.SpanID(), span.SpanContext().SpanID())
 	}
 	attrs := map[string]string{}
-	rec.WalkAttributes(func(kv otellog.KeyValue) bool {
+	rec.WalkAttributes(func(kv attribute.KeyValue) bool {
 		attrs[string(kv.Key)] = kv.Value.String()
 		return true
 	})

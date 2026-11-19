@@ -126,10 +126,9 @@ func Init(ctx context.Context, cfg Config) (shutdown func(context.Context) error
 		return noShutdown, nil
 	}
 
-	res, err := sdkresource.Merge(sdkresource.Default(), sdkresource.NewWithAttributes(
-		semconv.SchemaURL, semconv.ServiceName(cfg.ServiceName)))
+	res, err := buildResource(cfg.ServiceName)
 	if err != nil {
-		return nil, fmt.Errorf("o11y: resource: %w", err)
+		return nil, err
 	}
 
 	// Each provider is registered as it is built, and every shutdown
@@ -181,6 +180,27 @@ func Init(ctx context.Context, cfg Config) (shutdown func(context.Context) error
 }
 
 func noShutdown(context.Context) error { return nil }
+
+// buildResource names this service in every signal.
+//
+// The service name is attached without a schema URL on purpose. A
+// resource carries one, and Merge refuses two that disagree: pinning our
+// half to a semconv version means the day the SDK's Default() moves to a
+// newer schema, every consumer's Init fails with "conflicting Schema
+// URL" and the service does not start. That happened under SDK 1.47,
+// whose Default() speaks schema 1.43 while this file named 1.26.
+// Schemaless attributes merge into whatever the SDK brings, so the
+// framework never has to chase the SDK's schema again.
+func buildResource(serviceName string) (*sdkresource.Resource, error) {
+	res, err := sdkresource.Merge(
+		sdkresource.Default(),
+		sdkresource.NewSchemaless(semconv.ServiceName(serviceName)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("o11y: resource: %w", err)
+	}
+	return res, nil
+}
 
 // flushAll shuts every provider down, even if an early one fails —
 // a stuck trace exporter must not cost the metrics their last export.
