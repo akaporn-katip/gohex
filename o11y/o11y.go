@@ -126,8 +126,7 @@ func Init(ctx context.Context, cfg Config) (shutdown func(context.Context) error
 		return noShutdown, nil
 	}
 
-	res, err := sdkresource.Merge(sdkresource.Default(), sdkresource.NewWithAttributes(
-		semconv.SchemaURL, semconv.ServiceName(cfg.ServiceName)))
+	res, err := buildResource(cfg.ServiceName)
 	if err != nil {
 		return nil, fmt.Errorf("o11y: resource: %w", err)
 	}
@@ -181,6 +180,21 @@ func Init(ctx context.Context, cfg Config) (shutdown func(context.Context) error
 }
 
 func noShutdown(context.Context) error { return nil }
+
+// buildResource merges the SDK's default resource with the service name,
+// using a schemaless resource for the service name so Merge keeps
+// Default()'s schema URL and never conflicts with it. The alternative —
+// pinning semconv to the SDK's current schema version — breaks on the
+// next SDK bump unless every consumer also bumps, and silently breaks
+// consumers on an older SDK.
+func buildResource(serviceName string) (*sdkresource.Resource, error) {
+	serviceResource := sdkresource.NewSchemaless(semconv.ServiceName(serviceName))
+	res, err := sdkresource.Merge(sdkresource.Default(), serviceResource)
+	if err != nil {
+		return nil, fmt.Errorf("o11y: resource: %w", err)
+	}
+	return res, nil
+}
 
 // flushAll shuts every provider down, even if an early one fails —
 // a stuck trace exporter must not cost the metrics their last export.
