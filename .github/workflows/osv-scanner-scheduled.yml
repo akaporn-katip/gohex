@@ -1,0 +1,28 @@
+name: OSV-Scanner Scheduled Scan
+
+# A dependency doesn't change when its CVE is published — the go.sum we tagged
+# clean last month is the go.sum that is vulnerable today. gohex is a library:
+# whatever floor it carries, every consumer inherits, so the whole tree gets
+# re-asked against osv.dev every Monday, not just when someone edits a go.mod.
+on:
+  schedule:
+    - cron: "30 1 * * 1" # Mon 08:30 ICT
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  scan-scheduled:
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.7.1"
+    with:
+      # The module at the root plus every gohex-example module; --recursive
+      # finds them all, and the example a reader copies is held to the same
+      # floor as the framework.
+      scan-args: |-
+        --recursive
+        ./
