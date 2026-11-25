@@ -50,9 +50,16 @@ curl -s -X POST localhost:8080/orders -d '{"cents": 4999, "currency": "USD", "qt
 A feature flag decided once, at the edge:
 
 ```sh
-# turn the flag on for the ordering service and place an order
-EXPRESS_SHIPPING=true docker compose up -d ordering
-curl -s -X POST localhost:8080/orders -d '{"cents": 4999, "currency": "USD", "qty": 2}'
+# Place an order with a @horstory.test email: the e2e-accounts rule in the
+# GO Feature Flag relay-proxy serves express-shipping=enabled for *.test domains.
+curl -s -X POST localhost:8080/orders \
+  -d '{"email": "alice@horstory.test", "cents": 4999, "currency": "USD", "qty": 2}'
+# -> shipment will be express
+
+# Place an order with a normal email: express-shipping=disabled.
+curl -s -X POST localhost:8080/orders \
+  -d '{"email": "bob@example.com", "cents": 4999, "currency": "USD", "qty": 2}'
+# -> shipment will NOT be express
 ```
 
 The HTTP edge is the only place that asks `express-shipping`; the answer
@@ -62,6 +69,19 @@ into `CreateShipment{Express: true}`. Flip the flag off while an order is
 mid-flight and that order still ships express: the decision was taken
 when it was placed, not when it reached shipping
 ([gohex ADR-0021](https://github.com/akaporn-katip/gohex/blob/main/docs/adr/0021-feature-flags-evaluated-at-the-edge-and-pinned-into-metadata.md)).
+An order already in flight keeps the decision it was placed with.
+
+To edit flags and reload immediately, change `deploy/goff/flags.yaml` and
+tell the relay-proxy to refresh:
+
+```sh
+curl -X POST localhost:1031/admin/v1/retriever/refresh
+```
+
+The relay-proxy has no write API — flags change by editing the retriever's
+source (a file, a git repo, an S3 bucket, etc.) and either waiting for
+`pollingInterval` or calling the refresh endpoint. Production deployments
+ship a different `flags.yaml` with production-specific rules.
 
 Then open **http://localhost:8090** (HyperDX — the ClickHouse-backed
 ClickStack, OTLP built in) and find the trace: one timeline from

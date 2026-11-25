@@ -50,6 +50,21 @@ services:
       - "127.0.0.1:8090:8080"  # UI
       - "127.0.0.1:4318:4318"  # OTLP/HTTP (for running services outside compose)
 
+  # GO Feature Flag relay-proxy: evaluates express-shipping and other flags.
+  # Production deployments ship a different flags.yaml; the e2e-accounts rule
+  # ensures test-domain emails get the flagged path.
+  # The image is distroless (no shell tools), so healthcheck is disabled;
+  # ordering service retries connections via the OpenFeature provider.
+  flags:
+    image: gofeatureflag/go-feature-flag:latest
+    ports:
+      - "127.0.0.1:1031:1031"
+    volumes:
+      - ./deploy/goff/goff-proxy.yaml:/goff/goff-proxy.yaml:ro
+      - ./deploy/goff/flags.yaml:/goff/flags.yaml:ro
+    environment:
+      GOF_CONFIG_FILE: /goff/goff-proxy.yaml
+
   ordering:
     build:
       context: .
@@ -58,15 +73,18 @@ services:
       <<: *service-env
       DATABASE_URL: postgres://postgres:gohex@postgres:5432/ordering
       PORT: "8080"
-      # The express-shipping feature flag, served by the Static source.
-      # A real deployment points the OpenFeature adapter at flagd or
-      # Unleash instead; nothing else in the service changes.
+      # When GOFF_ENDPOINT is set, the ordering service uses the GO Feature Flag
+      # relay-proxy for feature evaluation. When unset, it falls back to the
+      # Static source driven by EXPRESS_SHIPPING env var (for local dev without containers).
+      GOFF_ENDPOINT: http://flags:1031
+      # Fallback for Static source when GOFF_ENDPOINT is not set:
       EXPRESS_SHIPPING: "false"
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
+      flags: { condition: service_started }
     restart: unless-stopped
 
   billing:

@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	goff "github.com/open-feature/go-sdk-contrib/providers/go-feature-flag/pkg"
+	"github.com/open-feature/go-sdk/openfeature"
 
 	"github.com/akaporn-katip/gohex-example/contracts"
 	"github.com/akaporn-katip/gohex-example/ordering/internal/adapters/httpapi"
@@ -27,6 +29,7 @@ import (
 	"github.com/akaporn-katip/gohex/eventstore"
 	espostgres "github.com/akaporn-katip/gohex/eventstore-postgres"
 	"github.com/akaporn-katip/gohex/featureflag"
+	openfeatureff "github.com/akaporn-katip/gohex/featureflag-openfeature"
 	"github.com/akaporn-katip/gohex/o11y"
 	"github.com/akaporn-katip/gohex/projection"
 	projectionpg "github.com/akaporn-katip/gohex/projection-postgres"
@@ -95,15 +98,30 @@ func run() error {
 
 	// Feature flags: Install stamps whatever the edge recorded onto every
 	// appended event, so the saga sees the same decision hours later
-	// (gohex ADR-0021). A real deployment swaps Static for the OpenFeature
-	// adapter; the edge code does not change.
+	// (gohex ADR-0021). When GOFF_ENDPOINT is set, use the GO Feature Flag
+	// relay-proxy; otherwise fall back to Static for local dev without containers.
 	// ObserveFeatureFlags wraps the source, not the client: the client
 	// owns the pinning, the source owns the answer. The counter is what
 	// tells us the flag has finished rolling out and can be deleted.
 	featureflag.Install()
-	flags := featureflag.NewClient(o11y.ObserveFeatureFlags(featureflag.Static{
-		app.FlagExpressShipping: envOr("EXPRESS_SHIPPING", "false") == "true",
-	}))
+	var flagSource featureflag.Source
+	if endpoint := os.Getenv("GOFF_ENDPOINT"); endpoint != "" {
+		slog.Info("using GO Feature Flag relay-proxy for feature flags", "endpoint", endpoint)
+		provider, err := goff.NewProvider(goff.ProviderOptions{Endpoint: endpoint})
+		if err != nil {
+			return fmt.Errorf("goff provider: %w", err)
+		}
+		if err := openfeature.SetProviderAndWait(provider); err != nil {
+			return fmt.Errorf("openfeature provider: %w", err)
+		}
+		flagSource = openfeatureff.New(openfeature.NewClient("ordering"))
+	} else {
+		slog.Info("using Static feature flags (GOFF_ENDPOINT not set)")
+		flagSource = featureflag.Static{
+			app.FlagExpressShipping: envOr("EXPRESS_SHIPPING", "false") == "true",
+		}
+	}
+	flags := featureflag.NewClient(o11y.ObserveFeatureFlags(flagSource))
 
 	// Saga: the fulfillment workflow, driven by integration events.
 	fulfillment := saga.NewRunner(app.NewFulfillmentSaga(), store, registry)

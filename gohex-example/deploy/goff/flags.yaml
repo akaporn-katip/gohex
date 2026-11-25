@@ -1,0 +1,17 @@
+# GO Feature Flag definitions
+# Production deployments ship a DIFFERENT flag file — the e2e-accounts rule
+# is designed so test-domain customers (.test) get the flagged path and real
+# customers do not. The relay-proxy has no write API; flags change by editing
+# the retriever's source (this file, a git repo, an S3 bucket, etc.) and
+# calling POST /admin/v1/retriever/refresh or waiting for pollingInterval.
+
+express-shipping:
+  variations:
+    enabled: true
+    disabled: false
+  targeting:
+    - name: e2e-accounts
+      query: (env ne "prod") and (email_domain ew ".test")
+      variation: enabled
+  defaultRule:
+    variation: disabled

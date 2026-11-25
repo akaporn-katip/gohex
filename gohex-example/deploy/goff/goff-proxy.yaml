@@ -1,0 +1,15 @@
+# GO Feature Flag relay-proxy configuration
+# This is the demo/local configuration; production deployments ship a different
+# flag file (flags.yaml) with production-specific rules.
+
+listen: 1031
+pollingInterval: 1000  # 1 second for demo responsiveness
+
+retriever:
+  kind: file
+  path: /goff/flags.yaml
+
+# Enrich the evaluation context with the environment name, so rules can
+# differentiate between local/staging/prod.
+evaluationContextEnrichment:
+  env: local

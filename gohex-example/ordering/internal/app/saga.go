@@ -16,8 +16,9 @@ const FlagExpressShipping = "express-shipping"
 // remember between steps. Handlers are pure decision functions
 // (ADR-0007) — the whole workflow reads top to bottom in this file.
 type Fulfillment struct {
-	Cents int64
-	Qty   int
+	Cents   int64
+	Qty     int
+	Express bool // pinned at OrderPlaced from gohex.flags metadata
 }
 
 // SagaTopics are the integration-event topics the fulfillment saga
@@ -37,11 +38,16 @@ var SagaTopics = []string{
 func NewFulfillmentSaga() *saga.Definition[Fulfillment] {
 	d := saga.New[Fulfillment]("order_fulfillment")
 
-	saga.OnEvent(d,
+	// OrderPlaced: read the express-shipping flag from metadata and pin it
+	// into the saga's state. Every subsequent step reads the state, not
+	// metadata, because later events (PaymentCaptured, StockReserved) come
+	// from services that don't know about flags.
+	saga.OnEventWithMeta(d,
 		func(e contracts.OrderPlacedV1) string { return e.OrderID },
-		func(s *Fulfillment, e contracts.OrderPlacedV1) (saga.Decisions, error) {
+		func(s *Fulfillment, e contracts.OrderPlacedV1, m saga.Meta) (saga.Decisions, error) {
 			s.Cents = e.Cents
 			s.Qty = e.Qty
+			s.Express = featureflag.PinnedIn(m.Metadata, FlagExpressShipping)
 			return saga.Send(saga.OutCommand{
 				Topic: contracts.TopicBillingCommands,
 				Cmd:   contracts.CapturePayment{OrderID: e.OrderID, Cents: e.Cents},
@@ -63,17 +69,17 @@ func NewFulfillmentSaga() *saga.Definition[Fulfillment] {
 			return saga.End(), nil // nothing to compensate: nothing happened yet
 		})
 
-	// The only handler that needs Meta: it acts on the flag decision the
-	// edge pinned onto the envelope, and turns it into business data on
-	// the command (shipping knows about express shipping, not flags).
-	saga.OnEventWithMeta(d,
+	// StockReserved: read the express decision from saga state (pinned at
+	// OrderPlaced) and turn it into business data on the command. Shipping
+	// knows about express shipping, not flags.
+	saga.OnEvent(d,
 		func(e contracts.StockReservedV1) string { return e.OrderID },
-		func(s *Fulfillment, e contracts.StockReservedV1, m saga.Meta) (saga.Decisions, error) {
+		func(s *Fulfillment, e contracts.StockReservedV1) (saga.Decisions, error) {
 			return saga.Send(saga.OutCommand{
 				Topic: contracts.TopicShippingCommands,
 				Cmd: contracts.CreateShipment{
 					OrderID: e.OrderID,
-					Express: featureflag.PinnedIn(m.Metadata, FlagExpressShipping),
+					Express: s.Express,
 				},
 			}), nil
 		})

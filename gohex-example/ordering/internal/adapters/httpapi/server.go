@@ -43,6 +43,7 @@ type server struct {
 
 type placeOrderRequest struct {
 	CustomerID string `json:"customer_id"` // optional; generated when empty
+	Email      string `json:"email"`       // optional; domain used for flag targeting
 	Cents      int64  `json:"cents"`
 	Currency   string `json:"currency"`
 	Qty        int    `json:"qty"`
@@ -83,10 +84,13 @@ func (s *server) placeOrder(w http.ResponseWriter, r *http.Request) {
 	// customer is — and recorded so it rides along as metadata on every
 	// event this request appends. The saga reads that decision later
 	// instead of asking again (gohex ADR-0021).
+	// The email domain (not the full email) goes into the evaluation
+	// context for targeting; the full email is personal data and must not
+	// travel to the flag backend.
 	ctx := featureflag.Record(r.Context())
 	s.flags.Enabled(ctx, app.FlagExpressShipping, featureflag.Subject{
 		Key:   customer.String(),
-		Attrs: map[string]string{"currency": total.Currency()},
+		Attrs: map[string]string{"email_domain": domainOf(req.Email)},
 	}, false)
 
 	id := kernel.NewID[domain.Order]()
@@ -126,4 +130,44 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// domainOf extracts the lowercased domain from an email address (everything
+// after the last '@'). Returns empty string when the email is empty or has no '@'.
+// The domain is NOT personal data and safe to send to the flag backend; the full
+// email is personal data and must not leave the edge.
+func domainOf(email string) string {
+	if email == "" {
+		return ""
+	}
+	if idx := lastIndexByte(email, '@'); idx >= 0 && idx < len(email)-1 {
+		return toLowerCase(email[idx+1:])
+	}
+	return ""
+}
+
+func lastIndexByte(s string, c byte) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == c {
+			return i
+		}
+	}
+	return -1
+}
+
+func toLowerCase(s string) string {
+	var b []byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if 'A' <= c && c <= 'Z' {
+			if b == nil {
+				b = []byte(s)
+			}
+			b[i] = c + ('a' - 'A')
+		}
+	}
+	if b == nil {
+		return s
+	}
+	return string(b)
 }
