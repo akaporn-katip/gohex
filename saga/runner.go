@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/akaporn-katip/gohex/broker"
@@ -68,6 +69,20 @@ func (r *Runner[S]) Handler() broker.Handler {
 	}
 }
 
+// mergeMetadata layers over on top of base, mutating neither.
+func mergeMetadata(base, over map[string]string) map[string]string {
+	switch {
+	case len(base) == 0:
+		return over
+	case len(over) == 0:
+		return base
+	}
+	out := make(map[string]string, len(base)+len(over))
+	maps.Copy(out, base)
+	maps.Copy(out, over)
+	return out
+}
+
 // process runs one delivery against the current instance. done=false
 // with an error means a version conflict worth retrying.
 func (r *Runner[S]) process(ctx context.Context, id string, msg broker.Message) (done bool, err error) {
@@ -89,13 +104,18 @@ func (r *Runner[S]) process(ctx context.Context, id string, msg broker.Message) 
 	}
 	decisions := inst.lastDecisions
 
-	// Trace context for outgoing commands: prefer the ambient context
-	// (which includes the saga's own consumer span when o11y is wired),
-	// falling back to the triggering event's metadata.
-	cmdMetadata := eventstore.MetadataFromContext(ctx)
-	if cmdMetadata == nil {
-		cmdMetadata = msg.Metadata
-	}
+	// Metadata for outgoing commands: the triggering envelope is the
+	// base — it carries what the flow was started with, including flag
+	// decisions pinned at the edge (ADR-0021) — and the ambient context
+	// overrides it key by key, so traceparent is the saga's own consumer
+	// span rather than the producer's.
+	//
+	// Picking one map and discarding the other (what this did before)
+	// dropped everything the envelope carried the moment o11y was wired,
+	// because then the context always had a traceparent and the fallback
+	// never ran. Unit tests without a tracer took the fallback and
+	// passed, which is exactly how the bug stayed invisible.
+	cmdMetadata := mergeMetadata(msg.Metadata, eventstore.MetadataFromContext(ctx))
 
 	for _, out := range decisions.Commands {
 		if out.Topic == "" {
