@@ -22,7 +22,30 @@ handler that is given the metadata: projections always were
 `saga.OnEventWithMeta` closes that gap by passing `saga.Meta` alongside
 the event — which keeps handlers pure, because the triggering envelope
 is already stored verbatim in the saga's own stream and replays
-identically. Re-evaluating
+identically. Command handlers read the same metadata from their context
+(`cqrs.MetaFromContext`), which the command consumer installs from the
+envelope; they already take a context, so a second way to declare the
+same dependency would only be API surface. Carrying the decision this
+far is what lets a downstream service honour it without knowing who the
+subject was: a payment handler can route to a sandbox gateway for the
+orders of one customer without the payment command ever carrying a
+customer identity, and without that service holding a flag client it
+could re-evaluate with.
+
+Two gaps had to be closed before any of that was true in practice. The
+saga runner stamped outgoing commands with either the ambient context's
+metadata or the triggering envelope's, never both — so the moment o11y
+was wired the context always had a traceparent, the envelope was
+discarded whole, and every pinned flag died at the first saga hop. Unit
+tests, which run without a tracer, took the other branch and passed:
+the failure existed only where telemetry did. The rule is now a merge
+with the envelope as the base and the context overriding key by key,
+which keeps the consumer's own span as the traceparent (ADR-0015) while
+letting everything else the envelope carried survive. The command
+consumer, likewise, dispatched the decoded command with a bare context
+and dropped `broker.Message.Metadata` on the floor.
+
+ Re-evaluating
 downstream was rejected for exactly that reason: a kill switch flipped
 mid-flow would leave half an order running new logic and half running
 old, with compensation unable to tell which. Carrying the subject

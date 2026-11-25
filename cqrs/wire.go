@@ -175,6 +175,12 @@ func (c *Consumer) Handler() broker.Handler {
 			return c.dedup.MarkProcessed(ctx, msg.ID)
 		}
 
+		// The envelope's metadata rides the context into the handler: a
+		// command's trace context and the flag decisions pinned where the
+		// flow started (ADR-0021) belong to the delivery, not to the
+		// command's business payload.
+		ctx = WithMeta(ctx, msg.Metadata)
+
 		if err := c.bus.Dispatch(ctx, cmd); err != nil {
 			if _, definitive := kernel.AsDomainError(err); definitive {
 				c.reject(ctx, msg, err)
