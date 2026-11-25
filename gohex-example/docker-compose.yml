@@ -56,7 +56,7 @@ services:
   # The image is distroless (no shell tools), so healthcheck is disabled;
   # ordering service retries connections via the OpenFeature provider.
   flags:
-    image: gofeatureflag/go-feature-flag:latest
+    image: gofeatureflag/go-feature-flag:v1.59.1
     ports:
       - "127.0.0.1:1031:1031"
     volumes:
@@ -64,6 +64,7 @@ services:
       - ./deploy/goff/flags.yaml:/goff/flags.yaml:ro
     environment:
       GOF_CONFIG_FILE: /goff/goff-proxy.yaml
+    restart: unless-stopped
 
   ordering:
     build:

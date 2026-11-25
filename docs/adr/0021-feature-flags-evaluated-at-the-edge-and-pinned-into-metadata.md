@@ -54,6 +54,22 @@ mistake wearing a disguise. A flag that is absent from the list is off,
 which makes a lost or truncated metadata map fail to the safe default
 rather than to whatever happens to be configured.
 
+A pinned decision travels as far as the originating service's causal
+chain reaches, and no further on its own. It is on every event that
+service appends, on every message its relay publishes from them, and on
+every command a saga issues while handling one of those messages. It is
+not on the events a *different* service appends while handling that
+command: those are stamped from that service's own context, which never
+saw the edge. So a saga must read a pinned flag from the first event
+that carries it — the one its own service produced — and keep it in saga
+state, where it is replayed with the stream like any other remembered
+fact. Reaching for `PinnedIn` on a foreign service's event (a
+`StockReservedV1` from inventory) finds nothing, and finds it silently,
+because absence means off. Propagating flags automatically across a
+service boundary was considered and rejected: it would mean a service
+re-stamping decisions it never made onto facts it owns, and the first
+service to filter or rename a flag would make the lineage a lie.
+
 Scope is deliberately narrow: boolean release flags and operational kill
 switches, with targeting (allowlists, percentage canaries) computed
 entirely by the `Source` behind the port, since that is what a real flag

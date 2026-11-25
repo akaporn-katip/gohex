@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
@@ -132,42 +133,14 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// domainOf extracts the lowercased domain from an email address (everything
-// after the last '@'). Returns empty string when the email is empty or has no '@'.
-// The domain is NOT personal data and safe to send to the flag backend; the full
-// email is personal data and must not leave the edge.
+// domainOf extracts the lowercased domain from an email address. It
+// returns "" when there is no domain to speak of. The domain is what the
+// flag backend is allowed to see: "horstory.test" identifies a class of
+// account, "alice@horstory.test" identifies a person.
 func domainOf(email string) string {
-	if email == "" {
+	at := strings.LastIndexByte(email, '@')
+	if at < 0 || at == len(email)-1 {
 		return ""
 	}
-	if idx := lastIndexByte(email, '@'); idx >= 0 && idx < len(email)-1 {
-		return toLowerCase(email[idx+1:])
-	}
-	return ""
-}
-
-func lastIndexByte(s string, c byte) int {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == c {
-			return i
-		}
-	}
-	return -1
-}
-
-func toLowerCase(s string) string {
-	var b []byte
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if 'A' <= c && c <= 'Z' {
-			if b == nil {
-				b = []byte(s)
-			}
-			b[i] = c + ('a' - 'A')
-		}
-	}
-	if b == nil {
-		return s
-	}
-	return string(b)
+	return strings.ToLower(email[at+1:])
 }
